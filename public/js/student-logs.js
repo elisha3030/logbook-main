@@ -361,7 +361,26 @@ class StudentKioskManager {
         document.getElementById('backToDocBtn')?.addEventListener('click', () => this.showDocumentSelection());
 
         // ── Time-out prompt ──
-        document.getElementById('confirmTimeOutBtn')?.addEventListener('click', () => this.handleTimeOut());
+        document.getElementById('confirmTimeOutBtn')?.addEventListener('click', () => {
+            if (this.currentStudent?.activeLogs?.length > 1) {
+                const modal = document.getElementById('multiSessionSignOutModal');
+                if (modal) {
+                    modal.classList.remove('hidden');
+                    this.renderModalActiveSessions(this.currentStudent.activeLogs);
+                }
+            } else {
+                this.handleTimeOut();
+            }
+        });
+        
+        document.getElementById('closeMultiSessionModalBtn')?.addEventListener('click', () => {
+            const modal = document.getElementById('multiSessionSignOutModal');
+            if (modal) modal.classList.add('hidden');
+        });
+
+        document.getElementById('viewHistoryTimeOutBtn')?.addEventListener('click', () => {
+            if (this.currentStudent) this.showStudentHistory(this.currentStudent);
+        });
         document.getElementById('ignoreTimeOutBtn')?.addEventListener('click',  () => this.showDocumentSelection());
         document.getElementById('cancelTimeOutBtn')?.addEventListener('click',  () => this.resetUI());
 
@@ -460,6 +479,9 @@ class StudentKioskManager {
         document.getElementById('manualEntryInitial')?.classList.remove('hidden');
         document.getElementById('manualEntryForm')?.classList.add('hidden');
         document.getElementById('otherDocSection')?.classList.add('hidden');
+        
+        // Hide modals
+        document.getElementById('multiSessionSignOutModal')?.classList.add('hidden');
 
         const customDocInput = document.getElementById('customDocInput');
         if (customDocInput) customDocInput.value = '';
@@ -563,22 +585,33 @@ class StudentKioskManager {
         const nameEl = document.getElementById('timeOutStudentName');
         if (nameEl) nameEl.textContent = student.name.split(' ')[0];
 
+        // Ensure "Sign Out" button text is standard
+        const btnText = document.getElementById('signOutBtnText');
+        const btnSub = document.getElementById('signOutBtnSubtext');
+        if (btnText) btnText.textContent = 'Sign Out';
+        if (btnSub) btnSub.textContent = 'End current session';
+
         this.resetIdleTimer();
         this.setupLucide();
     }
 
     // ── Time-out handler ───────────────────────────────────────
-    async handleTimeOut() {
-        if (!this.currentStudent?.activeLogs?.[0]) return;
-        const log = this.currentStudent.activeLogs[0];
+    async handleTimeOut(logId = null) {
+        const activeLogs = this.currentStudent?.activeLogs || [];
+        const targetLog = logId ? activeLogs.find(l => l.id === logId) : activeLogs[0];
+        
+        if (!targetLog) return;
+        
         try {
-            const res = await fetch(`/api/logs/${log.id}`, {
+            const res = await fetch(`/api/logs/${targetLog.id}`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ officeId: this.officeId })
             });
             if (res.ok) {
                 this.showToast('Signed out successfully. Thank you!', 'success');
+                // Hide modal if open
+                document.getElementById('multiSessionSignOutModal')?.classList.add('hidden');
                 this.resetUI();
             } else {
                 this.showToast('Failed to sign out. Please see staff.', 'error');
@@ -606,6 +639,35 @@ class StudentKioskManager {
 
         this.renderDocumentTypes();
         this.resetIdleTimer();
+        this.setupLucide();
+    }
+
+    // ── Modal Session Rendering ──────────────────────────────
+    renderModalActiveSessions(activeLogs) {
+        const list = document.getElementById('modalActiveSessionsList');
+        if (!list) return;
+
+        list.innerHTML = activeLogs.map(log => {
+            const timeIn = log.timeIn ? new Date(log.timeIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '---';
+            const dateIn = log.timeIn ? new Date(log.timeIn).toLocaleDateString([], { month: 'short', day: 'numeric' }) : '';
+            
+            return `
+                <div class="flex items-center gap-4 p-4 bg-white dark:bg-slate-800 rounded-2xl border-2 border-slate-100 dark:border-slate-700 hover:border-amber-300 dark:hover:border-amber-600 transition-all cursor-pointer group"
+                    onclick="window.kioskManager.handleTimeOut('${log.id}')">
+                    <div class="w-12 h-12 rounded-xl bg-orange-50 dark:bg-orange-900/20 text-orange-500 group-hover:bg-orange-500 group-hover:text-white flex items-center justify-center transition-all flex-shrink-0">
+                        <i data-lucide="check" class="w-6 h-6"></i>
+                    </div>
+                    <div class="flex-grow">
+                        <p class="font-black text-slate-800 dark:text-white text-base leading-tight">${log.activity || 'General Transaction'}</p>
+                        <p class="text-[10px] font-bold text-slate-500 dark:text-slate-400 mt-0.5">Started: <span class="text-slate-700 dark:text-slate-300">${dateIn} at ${timeIn}</span></p>
+                    </div>
+                    <div class="text-slate-300 dark:text-slate-600 group-hover:text-amber-500 transition-all flex-shrink-0 pl-2">
+                        <i data-lucide="chevron-right" class="w-5 h-5"></i>
+                    </div>
+                </div>
+            `;
+        }).join('');
+        
         this.setupLucide();
     }
 

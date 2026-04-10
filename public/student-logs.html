@@ -302,26 +302,37 @@
                 <p class="text-slate-500 dark:text-slate-400 font-medium text-lg">Welcome back, <span id="timeOutStudentName" class="text-amber-600 font-black">Student</span>! Choose an action below.</p>
             </div>
 
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-5 w-full max-w-xl">
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-5 w-full max-w-2xl">
                 <button id="confirmTimeOutBtn"
-                    class="kiosk-btn group bg-amber-500 hover:bg-amber-600 p-7 rounded-[2rem] shadow-xl shadow-amber-500/20 hover:-translate-y-1 transition-all flex flex-col items-center gap-4 active:scale-95">
+                    class="kiosk-btn group bg-amber-500 hover:bg-amber-600 p-6 rounded-[2rem] shadow-xl shadow-amber-500/20 hover:-translate-y-1 transition-all flex flex-col items-center gap-4 active:scale-95">
                     <div class="w-12 h-12 rounded-xl bg-white/20 text-white flex items-center justify-center">
                         <i data-lucide="log-out" class="w-6 h-6"></i>
                     </div>
                     <div class="text-center">
-                        <p class="text-lg font-black text-white">Sign Out</p>
-                        <p class="text-[10px] font-bold text-amber-100 uppercase tracking-widest mt-0.5">End current session</p>
+                        <p id="signOutBtnText" class="text-lg font-black text-white leading-none">Sign Out</p>
+                        <p id="signOutBtnSubtext" class="text-[10px] font-bold text-amber-100 uppercase tracking-widest mt-1">End current session</p>
+                    </div>
+                </button>
+
+                <button id="viewHistoryTimeOutBtn"
+                    class="kiosk-btn group bg-blue-500 hover:bg-blue-600 p-6 rounded-[2rem] shadow-xl shadow-blue-500/20 hover:-translate-y-1 transition-all flex flex-col items-center gap-4 active:scale-95">
+                    <div class="w-12 h-12 rounded-xl bg-white/20 text-white flex items-center justify-center">
+                        <i data-lucide="history" class="w-6 h-6"></i>
+                    </div>
+                    <div class="text-center">
+                        <p class="text-lg font-black text-white leading-none">View History</p>
+                        <p class="text-[10px] font-bold text-blue-100 uppercase tracking-widest mt-1">Check past requests</p>
                     </div>
                 </button>
 
                 <button id="ignoreTimeOutBtn"
-                    class="kiosk-btn group bg-white dark:bg-slate-800 p-7 rounded-[2rem] border-2 border-slate-200 dark:border-slate-700 shadow-xl hover:border-blue-300 dark:hover:border-blue-600 hover:-translate-y-1 transition-all flex flex-col items-center gap-4 active:scale-95">
+                    class="kiosk-btn group bg-white dark:bg-slate-800 p-6 rounded-[2rem] border-2 border-slate-200 dark:border-slate-700 shadow-xl hover:border-blue-300 dark:hover:border-blue-600 hover:-translate-y-1 transition-all flex flex-col items-center gap-4 active:scale-95">
                     <div class="w-12 h-12 rounded-xl bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 flex items-center justify-center">
                         <i data-lucide="plus" class="w-6 h-6"></i>
                     </div>
                     <div class="text-center">
-                        <p class="text-lg font-black text-slate-900 dark:text-white">New Request</p>
-                        <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Start another transaction</p>
+                        <p class="text-lg font-black text-slate-900 dark:text-white leading-none">New Request</p>
+                        <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Start transaction</p>
                     </div>
                 </button>
             </div>
@@ -516,6 +527,29 @@
             </div>
         </div>
     </template>
+
+    <!-- Multi-Session Sign Out Modal -->
+    <div id="multiSessionSignOutModal" class="hidden fixed inset-0 z-[120] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm animate-in fade-in duration-300">
+        <div class="relative bg-white dark:bg-slate-800 rounded-[2.5rem] shadow-2xl max-w-lg w-full overflow-hidden flex flex-col animate-in zoom-in-95 duration-300">
+            <div class="p-8 text-center border-b border-slate-100 dark:border-slate-700 bg-amber-50/50 dark:bg-amber-900/10">
+                <div class="w-16 h-16 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-500 mx-auto flex items-center justify-center mb-4">
+                    <i data-lucide="list-checks" class="w-8 h-8"></i>
+                </div>
+                <h3 class="text-2xl font-black text-slate-800 dark:text-white">Select Session to End</h3>
+                <p class="text-slate-500 dark:text-slate-400 font-medium text-sm mt-1">You have multiple active sessions. Please choose which one you are finishing.</p>
+            </div>
+            
+            <div class="p-6 overflow-y-auto max-h-[50vh] bg-slate-50/50 dark:bg-slate-900/20">
+                <div id="modalActiveSessionsList" class="space-y-3">
+                    <!-- Session cards injected here via JS -->
+                </div>
+            </div>
+
+            <div class="p-6 border-t border-slate-100 dark:border-slate-700 flex justify-end bg-white dark:bg-slate-800">
+                <button id="closeMultiSessionModalBtn" class="bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 font-bold px-8 py-3 rounded-2xl hover:-translate-y-1 transition-all active:scale-95">Cancel</button>
+            </div>
+        </div>
+    </div>
 
     <!-- Proof Viewer Modal -->
     <div id="proofViewerModal" class="hidden fixed inset-0 z-[110] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm">

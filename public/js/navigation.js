@@ -26,7 +26,7 @@ async function loadFacultySidebar() {
     }
 
     let html = `
-        <div class="pt-8 text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 px-4 mb-3">
+        <div class="pt-8 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 px-4 mb-3">
             Faculty Hubs
         </div>
         <!-- Hard-coded Faculty Hubs -->
@@ -38,7 +38,7 @@ async function loadFacultySidebar() {
                 <a href="faculty.html?staff=${encoded}"
                     class="flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-semibold group ${isActive
                     ? 'bg-purple-600 text-white shadow-lg shadow-purple-900/20'
-                    : 'hover:bg-slate-800 hover:text-white'
+                    : 'text-slate-200 hover:bg-slate-800 hover:text-white'
                 }">
                     <i data-lucide="user-round" class="w-5 h-5 ${isActive ? '' : 'group-hover:text-purple-400 transition-colors'}"></i>
                     <span class="truncate">${_escape(name)}</span>
@@ -60,7 +60,7 @@ async function loadFacultySidebar() {
                 <a href="faculty.html?staff=${encoded}"
                     class="flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-semibold group ${isActive
                     ? 'bg-purple-600 text-white shadow-lg shadow-purple-900/20'
-                    : 'hover:bg-slate-800 hover:text-white'
+                    : 'text-slate-200 hover:bg-slate-800 hover:text-white'
                 }">
                     <i data-lucide="user-round" class="w-5 h-5 ${isActive ? '' : 'group-hover:text-purple-400 transition-colors'}"></i>
                     <span class="truncate">${_escape(name)}</span>
@@ -74,7 +74,7 @@ async function loadFacultySidebar() {
     // Inject Employee Monitoring block for Dr. Mariciel if on faculty hub
     const employeeMonitorHtml = `
         <div class="mt-6 mb-2">
-            <div class="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 px-4 mb-3">
+            <div class="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 px-4 mb-3">
                 Administrative
             </div>
             <a href="faculty.html?staff=Employee+Hub#staffPresenceSection"

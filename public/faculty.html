@@ -71,20 +71,23 @@
 
         <!-- Nav Links -->
         <nav class="flex-grow px-4 space-y-2 overflow-y-auto pb-4">
-            <div class="mb-4">
-                <a href="index.html"
-                    class="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-slate-800 hover:text-white transition-all font-black text-[11px] uppercase tracking-widest text-emerald-500 bg-emerald-500/5 border border-emerald-500/20 group">
-                    <i data-lucide="layout-grid" class="w-4 h-4 group-hover:scale-110 transition-transform"></i>
-                    Back to Portal
-                </a>
-            </div>
+
 
             <!-- Faculty Hubs section injected here by navigation.js -->
             <div id="facultyHubsSection"></div>
         </nav>
 
         <!-- Sidebar Footer -->
-        <div class="p-6 border-t border-slate-800">
+        <div class="p-6 border-t border-slate-800 flex flex-col gap-4">
+            <a href="index.html"
+                class="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-black text-[10px] uppercase tracking-widest shadow-md shadow-emerald-500/30 hover:-translate-y-0.5 hover:shadow-emerald-500/40 active:scale-95 transition-all group overflow-hidden relative">
+                <div class="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300"></div>
+                <div class="relative z-10 flex items-center justify-center gap-2">
+                    <i data-lucide="monitor-stop" class="w-4 h-4 group-hover:scale-110 transition-transform"></i>
+                    Go back to portal
+                </div>
+            </a>
+
             <div class="bg-slate-800/50 rounded-2xl p-4 flex items-center justify-between">
                 <div class="flex items-center gap-3 overflow-hidden">
                     <div
@@ -245,10 +248,10 @@
                     <!-- Completion + Wait Time -->
                     <div class="space-y-4">
                         <p class="text-[10px] font-black uppercase tracking-widest text-slate-400">Performance</p>
-                        <div class="bg-slate-50 dark:bg-slate-700 rounded-2xl p-5 flex items-center gap-4">
+                        <div class="bg-white dark:bg-slate-800 rounded-3xl p-5 flex items-center gap-5 border border-slate-100 dark:border-slate-700 shadow-sm transition-all hover:shadow-md group">
                             <div
-                                class="bg-emerald-100 dark:bg-emerald-900/40 p-3 rounded-xl text-emerald-600 dark:text-emerald-400 flex-shrink-0">
-                                <i data-lucide="percent" class="w-5 h-5"></i>
+                                class="bg-emerald-500 dark:bg-emerald-500/20 p-3.5 rounded-2xl text-white dark:text-emerald-400 flex-shrink-0 shadow-lg shadow-emerald-500/20 group-hover:scale-110 transition-transform duration-500">
+                                <i data-lucide="percent" class="w-6 h-6"></i>
                             </div>
                             <div>
                                 <p class="text-[10px] font-black uppercase tracking-widest text-slate-400">Completion
@@ -257,10 +260,10 @@
                                     class="text-2xl font-black text-slate-900 dark:text-white">—</p>
                             </div>
                         </div>
-                        <div class="bg-slate-50 dark:bg-slate-700 rounded-2xl p-5 flex items-center gap-4">
+                        <div class="bg-white dark:bg-slate-800 rounded-3xl p-5 flex items-center gap-5 border border-slate-100 dark:border-slate-700 shadow-sm transition-all hover:shadow-md group">
                             <div
-                                class="bg-blue-100 dark:bg-blue-900/40 p-3 rounded-xl text-blue-600 dark:text-blue-400 flex-shrink-0">
-                                <i data-lucide="timer" class="w-5 h-5"></i>
+                                class="bg-blue-500 dark:bg-blue-500/20 p-3.5 rounded-2xl text-white dark:text-blue-400 flex-shrink-0 shadow-lg shadow-blue-500/20 group-hover:scale-110 transition-transform duration-500">
+                                <i data-lucide="timer" class="w-6 h-6"></i>
                             </div>
                             <div>
                                 <p class="text-[10px] font-black uppercase tracking-widest text-slate-400">Avg. Visit
@@ -269,10 +272,10 @@
                                 </p>
                             </div>
                         </div>
-                        <div class="bg-slate-50 dark:bg-slate-700 rounded-2xl p-5 flex items-center gap-4">
+                        <div class="bg-white dark:bg-slate-800 rounded-3xl p-5 flex items-center gap-5 border border-slate-100 dark:border-slate-700 shadow-sm transition-all hover:shadow-md group">
                             <div
-                                class="bg-amber-100 dark:bg-amber-900/40 p-3 rounded-xl text-amber-600 dark:text-amber-400 flex-shrink-0">
-                                <i data-lucide="trending-up" class="w-5 h-5"></i>
+                                class="bg-amber-500 dark:bg-amber-500/20 p-3.5 rounded-2xl text-white dark:text-amber-400 flex-shrink-0 shadow-lg shadow-amber-500/20 group-hover:scale-110 transition-transform duration-500">
+                                <i data-lucide="trending-up" class="w-6 h-6"></i>
                             </div>
                             <div>
                                 <p class="text-[10px] font-black uppercase tracking-widest text-slate-400">Busiest Hour

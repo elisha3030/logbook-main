@@ -34,18 +34,12 @@
 
         <!-- Nav Links -->
         <nav class="flex-grow px-4 space-y-2">
-            <div class="mb-4">
-                <a href="index.html"
-                    class="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-slate-800 hover:text-white transition-all font-black text-[11px] uppercase tracking-widest text-emerald-500 bg-emerald-500/5 border border-emerald-500/20 group">
-                    <i data-lucide="layout-grid" class="w-4 h-4 group-hover:scale-110 transition-transform"></i>
-                    Back to Portal
-                </a>
-            </div>
 
-            <div class="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 px-4 mb-4">Main Menu</div>
+
+            <div class="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 px-4 mb-4">Main Menu</div>
 
             <a href="dashboard.html"
-                class="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-slate-800 hover:text-white transition-all font-semibold group">
+                class="flex items-center gap-3 px-4 py-3 rounded-xl text-slate-200 hover:bg-slate-800 hover:text-white transition-all font-semibold group">
                 <i data-lucide="layout-dashboard" class="w-5 h-5 group-hover:text-blue-400 transition-colors"></i>
                 Dashboard
             </a>
@@ -57,32 +51,36 @@
             </a>
 
             <a href="history.html"
-                class="flex items-center justify-between px-4 py-3 rounded-xl hover:bg-slate-800 hover:text-white transition-all font-semibold group">
+                class="flex items-center justify-between px-4 py-3 rounded-xl text-slate-200 hover:bg-slate-800 hover:text-white transition-all font-semibold group">
                 <div class="flex items-center gap-3">
                     <i data-lucide="history" class="w-5 h-5 group-hover:text-emerald-400 transition-colors"></i>
                     Log History
                 </div>
             </a>
 
-            <div class="pt-8 text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 px-4 mb-4">Management</div>
+            <div class="pt-8 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 px-4 mb-4">Management</div>
 
             <a href="students.html"
-                class="flex items-center justify-between px-4 py-3 rounded-xl hover:bg-slate-800 hover:text-white transition-all font-semibold group">
+                class="flex items-center justify-between px-4 py-3 rounded-xl text-slate-200 hover:bg-slate-800 hover:text-white transition-all font-semibold group">
                 <div class="flex items-center gap-3">
                     <i data-lucide="users" class="w-5 h-5 group-hover:text-amber-400 transition-colors"></i>
                     Student Records
                 </div>
             </a>
 
-            <a href="settings.html"
-                class="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-slate-800 hover:text-white transition-all font-semibold group">
-                <i data-lucide="settings" class="w-5 h-5 group-hover:text-violet-400 transition-colors"></i>
-                System Settings
-            </a>
         </nav>
 
         <!-- Sidebar Footer -->
-        <div class="p-6 border-t border-slate-800">
+        <div class="p-6 border-t border-slate-800 flex flex-col gap-4">
+            <a href="index.html"
+                class="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-black text-[10px] uppercase tracking-widest shadow-md shadow-emerald-500/30 hover:-translate-y-0.5 hover:shadow-emerald-500/40 active:scale-95 transition-all group overflow-hidden relative">
+                <div class="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300"></div>
+                <div class="relative z-10 flex items-center justify-center gap-2">
+                    <i data-lucide="monitor-stop" class="w-4 h-4 group-hover:scale-110 transition-transform"></i>
+                    Go back to portal
+                </div>
+            </a>
+
             <div class="bg-slate-800/50 rounded-2xl p-4 flex items-center justify-between">
                 <div class="flex items-center gap-3 overflow-hidden">
                     <div
