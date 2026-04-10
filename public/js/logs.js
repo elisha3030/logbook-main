@@ -187,15 +187,45 @@ class LogsManager {
             bulkMarkOutBtn.addEventListener('click', () => this.bulkUpdateStatus('Out'));
         }
 
+        // ── Dropdown Toggles (Click instead of Hover) ──────────────────
+        const actionsBtn = document.getElementById('actionsBtn');
+        const actionsDropdown = document.getElementById('actionsDropdown');
+        const showMoreFiltersBtn = document.getElementById('showMoreFiltersBtn');
+        const moreFiltersPanel = document.getElementById('moreFiltersPanel');
+        const closeMoreFiltersBtn = document.getElementById('closeMoreFiltersBtn');
+
+        const toggleMenu = (btn, menu) => {
+            if (!btn || !menu) return;
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const isHidden = menu.classList.contains('hidden');
+                // Close other open menus first
+                [actionsDropdown, moreFiltersPanel].forEach(m => m?.classList.add('hidden'));
+                if (isHidden) menu.classList.remove('hidden');
+            });
+        };
+
+        toggleMenu(actionsBtn, actionsDropdown);
+        toggleMenu(showMoreFiltersBtn, moreFiltersPanel);
+
+        if (closeMoreFiltersBtn) {
+            closeMoreFiltersBtn.addEventListener('click', () => moreFiltersPanel?.classList.add('hidden'));
+        }
+
         // Close proof modal
-        const closeBtn  = document.getElementById('closeProofModal');
-        const closeBtn2 = document.getElementById('closeProofModalBtn');
-        const modal     = document.getElementById('proofViewerModal');
-        [closeBtn, closeBtn2].forEach(btn => {
-            btn?.addEventListener('click', () => modal?.classList.add('hidden'));
+        const closeProofBtn  = document.getElementById('closeProofModal');
+        const closeProofBtn2 = document.getElementById('closeProofModalBtn');
+        const proofModal     = document.getElementById('proofViewerModal');
+        [closeProofBtn, closeProofBtn2].forEach(btn => {
+            btn?.addEventListener('click', () => proofModal?.classList.add('hidden'));
         });
-        modal?.addEventListener('click', (e) => {
-            if (e.target === modal) modal.classList.add('hidden');
+        proofModal?.addEventListener('click', (e) => {
+            if (e.target === proofModal) proofModal.classList.add('hidden');
+        });
+
+        // Click outside to close menus
+        window.addEventListener('click', () => {
+            [actionsDropdown, moreFiltersPanel].forEach(m => m?.classList.add('hidden'));
         });
 
         // Clock out in modal
@@ -612,6 +642,9 @@ class LogsManager {
                 <td class="px-6 py-4 font-bold text-slate-600 dark:text-slate-300 text-sm">${e.staff || '---'}</td>
                 <td class="px-6 py-4 text-slate-500 text-xs font-bold">${timeIn}</td>
                 <td class="px-6 py-4 text-right">
+                    <button onclick="logsManager.viewEntry('${e.id}')" class="w-8 h-8 inline-flex items-center justify-center rounded-lg bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-slate-400 hover:text-blue-600 hover:border-blue-200 transition-all mr-1" title="View Details">
+                        <i data-lucide="eye" class="w-4 h-4"></i>
+                    </button>
                     <button onclick="logsManager.singleApprove('${e.id}','Pending')" class="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg text-[10px] font-black uppercase tracking-wider border border-emerald-200 transition-all mr-1">Approve</button>
                     <button onclick="logsManager.singleApprove('${e.id}','Out')" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 rounded-lg text-[10px] font-black uppercase tracking-wider border border-slate-200 dark:border-slate-600 transition-all">Mark Out</button>
                 </td>

@@ -135,6 +135,8 @@ class StudentKioskManager {
         this._idleTimer    = null;
         this._countdownTimer = null;
         this.IDLE_TIMEOUT  = 60000; // 60 s with no interaction resets to scan screen
+        this.isIdVisible   = false;
+        this.isHistoryVisible = false;
 
         this.init();
     }
@@ -367,6 +369,11 @@ class StudentKioskManager {
         document.getElementById('proceedToTransactionBtn')?.addEventListener('click', () => this.showDocumentSelection());
         document.getElementById('switchStudentBtn')?.addEventListener('click',         () => this.resetUI());
 
+        // ── Privacy Toggles ──
+        document.getElementById('toggleStudentIdBtn')?.addEventListener('click', () => this.toggleIdVisibility());
+        document.getElementById('revealHistoryBtn')?.addEventListener('click',   () => this.revealHistory());
+        document.getElementById('toggleHistoryVisibilityBtn')?.addEventListener('click', () => this.hideHistory());
+
         // ── Proof modal ────
         const closeProof  = document.getElementById('closeProofModal');
         const closeProof2 = document.getElementById('closeProofModalBtn');
@@ -445,6 +452,8 @@ class StudentKioskManager {
         this.selectedDocument = null;
         this.selectedFaculty  = null;
         this.barcodeBuffer    = '';
+        this.isIdVisible      = false;
+        this.isHistoryVisible = false;
 
         this.hideAllScreens();
         document.getElementById('scanPrompt')?.classList.remove('hidden');
@@ -460,7 +469,70 @@ class StudentKioskManager {
         });
 
         this.updateStepIndicator(0);
+        this.updateIdDisplay();
+        this.updateHistoryVisibility();
         this.setupLucide();
+    }
+
+    updateIdDisplay() {
+        const idEl = document.getElementById('studentIdDisplay');
+        const icon = document.getElementById('toggleIdIcon');
+        if (!idEl) return;
+
+        if (!this.currentStudent) {
+            idEl.textContent = '---';
+            return;
+        }
+
+        if (this.isIdVisible) {
+            idEl.textContent = this.currentStudent.studentId || this.currentStudent.id;
+            if (icon) icon.setAttribute('data-lucide', 'eye-off');
+        } else {
+            const rawId = this.currentStudent.studentId || this.currentStudent.id;
+            // Show only the first 2 and last 2 characters if long enough
+            if (rawId.length > 6) {
+                idEl.textContent = `${rawId.substring(0, 2)}***-***${rawId.substring(rawId.length - 2)}`;
+            } else {
+                idEl.textContent = '***-****-***';
+            }
+            if (icon) icon.setAttribute('data-lucide', 'eye');
+        }
+        this.setupLucide();
+    }
+
+    toggleIdVisibility() {
+        this.isIdVisible = !this.isIdVisible;
+        this.updateIdDisplay();
+    }
+
+    updateHistoryVisibility() {
+        const screen = document.getElementById('historyPrivacyScreen');
+        const content = document.getElementById('historyContent');
+        const toggleBtn = document.getElementById('toggleHistoryVisibilityBtn');
+        if (!screen || !content) return;
+
+        if (this.isHistoryVisible) {
+            screen.classList.add('hidden');
+            content.classList.remove('hidden');
+            toggleBtn?.classList.remove('hidden');
+        } else {
+            screen.classList.remove('hidden');
+            content.classList.add('hidden');
+            toggleBtn?.classList.add('hidden');
+        }
+    }
+
+    revealHistory() {
+        this.isHistoryVisible = true;
+        this.updateHistoryVisibility();
+        if (this.currentStudent) {
+            this.fetchAndRenderLogs(this.currentStudent.id);
+        }
+    }
+
+    hideHistory() {
+        this.isHistoryVisible = false;
+        this.updateHistoryVisibility();
     }
 
     // ── Show: Landing ──────────────────────────────────────────
@@ -772,13 +844,16 @@ class StudentKioskManager {
         screen.classList.remove('hidden');
 
         const nameEl = document.getElementById('studentName');
-        const idEl   = document.getElementById('studentIdDisplay');
         const progEl = document.getElementById('studentProgram');
         if (nameEl) nameEl.textContent = student.name;
-        if (idEl)   idEl.textContent   = student.studentId || student.id;
         if (progEl) progEl.textContent = student.Course || student.course || 'N/A';
 
-        this.fetchAndRenderLogs(student.id);
+        // Reset visibility to hidden when entering history screen
+        this.isIdVisible = false;
+        this.isHistoryVisible = false;
+        this.updateIdDisplay();
+        this.updateHistoryVisibility();
+
         this.resetIdleTimer();
         this.setupLucide();
     }
@@ -800,7 +875,7 @@ class StudentKioskManager {
         `;
 
         try {
-            const res  = await fetch(`/api/logs?studentNumber=${studentNumber}&limit=15`);
+            const res  = await fetch(`/api/logs?studentNumber=${studentNumber}&limit=5`);
             const logs = await res.json();
 
             if (!logs || logs.length === 0) {
