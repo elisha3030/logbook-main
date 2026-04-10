@@ -1368,55 +1368,105 @@ window.viewTransactionDetails = function(logId) {
     const isCompleted = log.status === 'completed';
 
     content.innerHTML = `
-        <div class="flex items-start gap-6">
-            <div class="w-16 h-16 rounded-3xl bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 flex items-center justify-center text-2xl font-black flex-shrink-0">
-                ${escape((log.studentName || 'S')[0]).toUpperCase()}
+        <!-- Profile Header -->
+        <div class="flex items-center gap-6 pb-2">
+            <div class="w-20 h-20 rounded-[2rem] bg-gradient-to-br from-blue-500 to-blue-600 p-0.5 shadow-lg shadow-blue-500/20">
+                <div class="w-full h-full rounded-[1.9rem] bg-white dark:bg-slate-800 flex items-center justify-center text-3xl font-black text-blue-600 dark:text-blue-400">
+                    ${escape((log.studentName || 'S')[0]).toUpperCase()}
+                </div>
             </div>
-            <div class="space-y-1">
-                <h4 class="text-2xl font-black text-slate-800 dark:text-white leading-tight">${escape(log.studentName)}</h4>
-                <p class="text-slate-400 font-bold uppercase tracking-widest text-[11px] flex items-center gap-2">
-                    <i data-lucide="hash" class="w-3.5 h-3.5"></i>
-                    ${escape(log.studentId || log.studentNumber)}
-                </p>
-                <p class="text-slate-500 font-medium text-sm flex items-center gap-2">
-                    <i data-lucide="graduation-cap" class="w-4 h-4"></i>
-                    ${escape(log.course || 'N/A')} • Year ${escape(log.yearLevel || 'N/A')}
-                </p>
+            <div class="space-y-1.5">
+                <h4 class="text-3xl font-black text-slate-900 dark:text-white tracking-tight leading-none">${escape(log.studentName)}</h4>
+                <div class="flex flex-wrap gap-x-4 gap-y-2 pt-1">
+                    <p class="text-slate-400 font-black uppercase tracking-widest text-[10px] flex items-center gap-2">
+                        <i data-lucide="hash" class="w-3.5 h-3.5"></i>
+                        ${escape(log.studentId || log.studentNumber)}
+                    </p>
+                    <p class="text-blue-500/80 font-black uppercase tracking-widest text-[10px] flex items-center gap-2">
+                        <i data-lucide="graduation-cap" class="w-3.5 h-3.5"></i>
+                        ${escape(log.course || 'N/A')} • Year ${escape(log.yearLevel || 'N/A')}
+                    </p>
+                </div>
             </div>
         </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4">
-            <div class="bg-slate-50 dark:bg-slate-900/50 p-6 rounded-3xl border border-slate-100 dark:border-slate-700/50 space-y-4">
-                <div>
-                    <p class="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Primary Activity</p>
-                    <p class="font-bold text-slate-800 dark:text-white text-lg">${escape(log.activity || '—')}</p>
-                </div>
-                <div>
-                    <p class="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Check-in Time</p>
-                    <p class="font-bold text-slate-700 dark:text-slate-300 text-sm">${new Date(log.timeIn).toLocaleString()}</p>
+        <!-- Details Grid -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <!-- Left Info Block: Activity -->
+            <div class="group bg-white dark:bg-slate-800 p-6 rounded-[2.5rem] border border-slate-200/60 dark:border-slate-700 shadow-xl shadow-slate-100 dark:shadow-none transition-all hover:border-blue-500/50 space-y-5 relative overflow-hidden">
+                <div class="absolute top-0 left-0 w-1.5 h-full bg-blue-500"></div>
+                <div class="space-y-4">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-2xl bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 flex items-center justify-center shadow-inner">
+                            <i data-lucide="activity" class="w-5 h-5"></i>
+                        </div>
+                        <p class="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Primary Activity</p>
+                    </div>
+                    <div>
+                        <p class="font-black text-slate-900 dark:text-white text-2xl tracking-tight leading-tight">${escape(log.activity || '—')}</p>
+                        <div class="flex items-center gap-2 mt-3 text-blue-600 dark:text-blue-400 bg-blue-50/50 dark:bg-blue-900/20 px-4 py-2 rounded-xl border border-blue-100/50 dark:border-blue-800/50 w-fit shadow-sm">
+                            <i data-lucide="clock" class="w-3.5 h-3.5 animate-pulse"></i>
+                            <span class="text-[11px] font-black uppercase tracking-wider">${new Date(log.timeIn).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}</span>
+                        </div>
+                    </div>
                 </div>
             </div>
 
-            <div class="bg-slate-50 dark:bg-slate-900/50 p-6 rounded-3xl border border-slate-100 dark:border-slate-700/50 space-y-4">
-                <div>
-                    <p class="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Transaction Status</p>
-                    <div class="flex items-center gap-2">
-                        <span class="px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest ${isCompleted ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}">
-                            ${log.status || 'Waiting'}
-                        </span>
+            <!-- Right Info Block: Status -->
+            <div class="group bg-white dark:bg-slate-800 p-6 rounded-[2.5rem] border border-slate-200/60 dark:border-slate-700 shadow-xl shadow-slate-100 dark:shadow-none transition-all hover:border-blue-500/50 space-y-5 relative overflow-hidden">
+                 <div class="absolute top-0 left-0 w-1.5 h-full ${log.status?.toLowerCase() === 'completed' ? 'bg-emerald-500' : (log.status?.toLowerCase() === 'in-service' ? 'bg-blue-600' : 'bg-amber-500')}"></div>
+                <div class="space-y-4">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-2xl bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 flex items-center justify-center shadow-inner">
+                            <i data-lucide="info" class="w-5 h-5"></i>
+                        </div>
+                        <p class="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Visit Status</p>
+                    </div>
+                    <div class="space-y-4">
+                        ${(() => {
+                            let colorClass = 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/20 dark:text-amber-400 dark:border-amber-800/50';
+                            let icon = '<i data-lucide="clock" class="w-4 h-4"></i>';
+                            let dot = '<div class="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></div>';
+                            let statusText = log.status || 'Waiting';
+
+                            if (log.status?.toLowerCase() === 'completed') {
+                                colorClass = 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-400 dark:border-emerald-800/50';
+                                icon = '<i data-lucide="check-circle" class="w-4 h-4"></i>';
+                                dot = '<div class="w-2 h-2 rounded-full bg-emerald-500"></div>';
+                                statusText = 'Completed';
+                            } else if (log.status?.toLowerCase() === 'in-service') {
+                                colorClass = 'bg-blue-600 text-white border-blue-700 shadow-lg shadow-blue-500/20';
+                                icon = '<i data-lucide="loader" class="w-4 h-4 animate-spin"></i>';
+                                dot = '<div class="w-2 h-2 rounded-full bg-white animate-ping"></div>';
+                                statusText = 'In Service';
+                            }
+
+                            return `
+                                <div class="flex items-center gap-4">
+                                    <span class="inline-flex items-center gap-3 px-6 py-3 rounded-2xl text-xs font-black uppercase tracking-widest border transition-all ${colorClass}">
+                                        ${icon}
+                                        ${statusText}
+                                    </span>
+                                    ${dot}
+                                </div>
+                            `;
+                        })()}
                     </div>
                 </div>
-                
+
                 ${isDocRequest && !isCompleted ? `
                 <div class="pt-2">
-                    <p class="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3">Document Progress</p>
+                    <div class="flex items-center justify-between mb-3 px-1">
+                        <p class="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">Update Progress</p>
+                        <i data-lucide="file-text" class="w-3 h-3 text-slate-300"></i>
+                    </div>
                     <div class="flex items-center gap-2">
                          <button onclick="window.updateDocStatus('${log.id}', 'In'); document.getElementById('transactionDetailsModal').classList.add('hidden')"
-                            class="flex-1 py-3 rounded-2xl bg-blue-100 text-blue-600 font-bold text-[10px] uppercase hover:bg-blue-600 hover:text-white transition-all ${(log.docStatus || 'In') === 'In' || log.docStatus?.toLowerCase() === 'incoming' ? 'ring-2 ring-blue-500' : ''}">In</button>
+                            class="flex-1 py-3 rounded-xl bg-slate-50 dark:bg-slate-700 text-slate-600 dark:text-slate-300 font-black text-[10px] uppercase border border-slate-100 dark:border-slate-600 hover:bg-blue-600 hover:text-white hover:border-blue-600 transition-all ${(log.docStatus || 'In') === 'In' || log.docStatus?.toLowerCase() === 'incoming' ? 'ring-2 ring-blue-500 bg-blue-50 text-blue-600 border-blue-200' : ''}">In</button>
                         <button onclick="window.updateDocStatus('${log.id}', 'Pending'); document.getElementById('transactionDetailsModal').classList.add('hidden')"
-                            class="flex-1 py-3 rounded-2xl bg-amber-100 text-amber-600 font-bold text-[10px] uppercase hover:bg-amber-600 hover:text-white transition-all ${log.docStatus === 'Pending' || log.docStatus?.toLowerCase() === 'in-service' || log.docStatus?.toLowerCase() === 'pending' ? 'ring-2 ring-amber-500' : ''}">Pnd</button>
+                            class="flex-1 py-3 rounded-xl bg-slate-50 dark:bg-slate-700 text-slate-600 dark:text-slate-300 font-black text-[10px] uppercase border border-slate-100 dark:border-slate-600 hover:bg-amber-600 hover:text-white hover:border-amber-600 transition-all ${log.docStatus === 'Pending' || log.docStatus?.toLowerCase() === 'in-service' || log.docStatus?.toLowerCase() === 'pending' ? 'ring-2 ring-amber-500 bg-amber-50 text-amber-600 border-amber-200' : ''}">Pnd</button>
                         <button onclick="window.updateDocStatus('${log.id}', 'Out'); document.getElementById('transactionDetailsModal').classList.add('hidden')"
-                            class="flex-1 py-3 rounded-2xl bg-emerald-100 text-emerald-600 font-bold text-[10px] uppercase hover:bg-emerald-600 hover:text-white transition-all ${log.docStatus === 'Out' ? 'ring-2 ring-emerald-500' : ''}">Out</button>
+                            class="flex-1 py-3 rounded-xl bg-slate-50 dark:bg-slate-700 text-slate-600 dark:text-slate-300 font-black text-[10px] uppercase border border-slate-100 dark:border-slate-600 hover:bg-emerald-600 hover:text-white hover:border-emerald-600 transition-all ${log.docStatus === 'Out' ? 'ring-2 ring-emerald-500 bg-emerald-50 text-emerald-600 border-emerald-200' : ''}">Out</button>
                     </div>
                 </div>
                 ` : ''}
@@ -1424,12 +1474,17 @@ window.viewTransactionDetails = function(logId) {
         </div>
 
         ${log.proofImage ? `
-            <div class="pt-2">
-                <p class="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-4">Attached Proof/Document</p>
-                <div class="relative group cursor-pointer" onclick="window.viewProof('${log.proofImage}')">
-                    <img src="${log.proofImage}" class="w-full h-48 object-cover rounded-3xl border border-slate-200 dark:border-slate-700 shadow-lg">
-                    <div class="absolute inset-0 bg-slate-900/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded-3xl">
-                        <span class="bg-white text-slate-900 px-6 py-3 rounded-2xl font-bold text-sm shadow-xl">Click to View Larger</span>
+            <div class="pt-2 animate-in slide-in-from-bottom-4 duration-500">
+                <div class="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-slate-400 mb-4">
+                    <i data-lucide="image" class="w-3.5 h-3.5"></i>
+                    Attached Proof/Document
+                </div>
+                <div class="relative group cursor-pointer overflow-hidden rounded-[2.5rem]" onclick="window.viewProof('${log.proofImage}')">
+                    <img src="${log.proofImage}" class="w-full h-52 object-cover border border-slate-200 dark:border-slate-700 shadow-xl group-hover:scale-105 transition-transform duration-700">
+                    <div class="absolute inset-0 bg-slate-900/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                        <div class="bg-white text-slate-900 px-6 py-3 rounded-2xl font-black text-[11px] uppercase tracking-widest shadow-2xl transform translate-y-4 group-hover:translate-y-0 transition-transform duration-500">
+                            Click to Expand Proof
+                        </div>
                     </div>
                 </div>
             </div>
