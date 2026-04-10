@@ -188,8 +188,8 @@ class VisitorKioskManager {
         const purposes = [
             { id: 'Meeting', icon: 'users', label: 'Meeting / Consultation' },
             { id: 'Delivery', icon: 'package', label: 'Delivery / Courier' },
-            { id: 'Maintenance', icon: 'tool', label: 'Maintenance / Tech' },
-            { id: 'Inquiry', icon: 'help-circle', label: 'General Inquiry' },
+            { id: 'Maintenance', icon: 'wrench', label: 'Maintenance / Tech' },
+            { id: 'Inquiry', icon: 'messages-square', label: 'General Inquiry' },
             { id: 'Event', icon: 'calendar', label: 'School Event' },
             { id: 'Other', icon: 'more-horizontal', label: 'Other' }
         ];
@@ -197,7 +197,7 @@ class VisitorKioskManager {
         grid.innerHTML = purposes.map(p => `
             <button onclick="window.kioskManager.selectPurpose('${p.label.replace(/'/g, "\\'")}')"
                 class="purpose-card group bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-xl shadow-slate-200/40 hover:border-violet-500 transition-all flex flex-col items-center gap-4 text-center">
-                <div class="w-16 h-16 rounded-2xl bg-violet-50 dark:bg-violet-900/30 text-violet-600 flex items-center justify-center group-hover:bg-violet-600 group-hover:text-white transition-all">
+                <div class="w-16 h-16 rounded-2xl bg-violet-50 dark:bg-violet-900/30 text-violet-600 flex items-center justify-center transition-all shadow-sm group-hover:scale-110">
                     <i data-lucide="${p.icon}" class="w-8 h-8"></i>
                 </div>
                 <p class="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">${p.label}</p>

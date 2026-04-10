@@ -686,8 +686,31 @@ class StudentKioskManager {
                         const name = typeof a === 'object' ? a.name : a;
                         if (name.toLowerCase() === 'others' || name.toLowerCase() === 'other') return;
                         if (!docs.find(d => d.name === name)) {
-                            docs.splice(docs.length - 1, 0, { // insert before "Others"
-                                name, short: name, icon: 'file', color: 'slate', category: 'custom', description: ''
+                            // Smart icon & color mapping for common admin-added activities
+                            let icon = 'file-text';
+                            let color = 'slate';
+                            const checkName = name.toLowerCase();
+                            
+                            if (checkName.includes('enroll') || checkName.includes('admission')) {
+                                icon = 'clipboard-list'; color = 'blue';
+                            } else if (checkName.includes('inquir') || checkName.includes('question')) {
+                                icon = 'messages-square'; color = 'emerald';
+                            } else if (checkName.includes('consult') || checkName.includes('counsel')) {
+                                icon = 'message-square-text'; color = 'violet';
+                            } else if (checkName.includes('document') || checkName.includes('record') || checkName.includes('grade')) {
+                                icon = 'folders'; color = 'indigo';
+                            } else if (checkName.includes('pay') || checkName.includes('financ') || checkName.includes('fee')) {
+                                icon = 'credit-card'; color = 'rose';
+                            } else if (checkName.includes('id ') || checkName.includes('card')) {
+                                icon = 'badge-help'; color = 'amber';
+                            } else if (checkName.includes('clearance')) {
+                                icon = 'check-circle'; color = 'lime';
+                            } else {
+                                icon = 'file'; color = 'slate';
+                            }
+
+                            docs.splice(docs.length - 1, 0, { 
+                                name, short: name, icon, color, category: 'custom', description: 'Student Request'
                             });
                         }
                     });

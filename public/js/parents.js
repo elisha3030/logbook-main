@@ -183,7 +183,7 @@ class ParentsKioskManager {
 
         const mainPurposes = [
             { id: 'Enrollment', icon: 'clipboard-list', label: 'Enrollment' },
-            { id: 'Inquiries', icon: 'help-circle', label: 'General Inquiries' },
+            { id: 'Inquiries', icon: 'messages-square', label: 'General Inquiries' },
             { id: 'Document Request', icon: 'file-text', label: 'Document Request' },
             { id: 'Consultation', icon: 'message-square', label: 'Consultation' },
             { id: 'Payment', icon: 'credit-card', label: 'Payment / Finance' },
@@ -193,7 +193,7 @@ class ParentsKioskManager {
         grid.innerHTML = mainPurposes.map(p => `
             <button onclick="window.kioskManager.handlePurposeClick('${p.id}', '${p.label.replace(/'/g, "\\'")}')"
                 class="purpose-card group bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-xl shadow-slate-200/40 hover:border-emerald-500 transition-all flex flex-col items-center gap-4 text-center">
-                <div class="w-14 h-14 rounded-2xl bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 flex items-center justify-center group-hover:bg-emerald-600 group-hover:text-white transition-all">
+                <div class="w-14 h-14 rounded-2xl bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 flex items-center justify-center transition-all shadow-sm group-hover:scale-110">
                     <i data-lucide="${p.icon}" class="w-7 h-7"></i>
                 </div>
                 <p class="text-base font-black text-slate-900 dark:text-white uppercase tracking-tight">${p.label}</p>
