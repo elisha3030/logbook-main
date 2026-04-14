@@ -738,6 +738,24 @@ app.patch('/api/logs/:id', async (req, res) => {
                 'UPDATE logs SET docStatus = ?, synced = 0 WHERE id = ?',
                 [docStatus, id]
             );
+
+            // Send email alert when admin marks docStatus as 'Out'
+            if (docStatus === 'Out') {
+                const log = await localDb.get('SELECT * FROM logs WHERE id = ?', id);
+                if (log) {
+                    let targetEmail = log.email;
+                    if (!targetEmail) {
+                        const student = await localDb.get(
+                            'SELECT email FROM students WHERE barcode = ? OR studentId = ?',
+                            [log.studentNumber, log.studentId]
+                        );
+                        if (student) targetEmail = student.email;
+                    }
+                    if (targetEmail) {
+                        sendClaimNotification(targetEmail, log.studentName, log.activity);
+                    }
+                }
+            }
         } else {
             // Student time-out
             const timeOut = new Date().toISOString();
@@ -745,6 +763,22 @@ app.patch('/api/logs/:id', async (req, res) => {
                 'UPDATE logs SET timeOut = ?, docStatus = ?, synced = 0 WHERE id = ?',
                 [timeOut, 'Out', id]
             );
+
+            // Send email alert when student clicks "Out"
+            const log = await localDb.get('SELECT * FROM logs WHERE id = ?', id);
+            if (log) {
+                let targetEmail = log.email;
+                if (!targetEmail) {
+                    const student = await localDb.get(
+                        'SELECT email FROM students WHERE barcode = ? OR studentId = ?',
+                        [log.studentNumber, log.studentId]
+                    );
+                    if (student) targetEmail = student.email;
+                }
+                if (targetEmail) {
+                    sendClaimNotification(targetEmail, log.studentName, log.activity);
+                }
+            }
         }
 
         res.json({ success: true });
@@ -769,6 +803,22 @@ app.patch('/api/logs/:id/complete', async (req, res) => {
 
         res.json({ success: true });
         syncToCloud();
+
+        // Send email alert when faculty marks session as complete
+        const log = await localDb.get('SELECT * FROM logs WHERE id = ?', id);
+        if (log) {
+            let targetEmail = log.email;
+            if (!targetEmail) {
+                const student = await localDb.get(
+                    'SELECT email FROM students WHERE barcode = ? OR studentId = ?',
+                    [log.studentNumber, log.studentId]
+                );
+                if (student) targetEmail = student.email;
+            }
+            if (targetEmail) {
+                sendClaimNotification(targetEmail, log.studentName, log.activity);
+            }
+        }
     } catch (error) {
         console.error('Error completing log locally:', error);
         res.status(500).json({ error: 'Failed to complete log' });
