@@ -306,18 +306,16 @@ async function initializeLocalDb() {
     console.log('📦 Local SQLite database initialized with optimizations.');
 }
 
-// Nodemailer Transporter — lazy factory so credentials are always fresh
-function createTransporter() {
-    return nodemailer.createTransport({
-        host: process.env.SMTP_HOST || 'smtp.gmail.com',
-        port: parseInt(process.env.SMTP_PORT) || 587,
-        secure: parseInt(process.env.SMTP_PORT) === 465,
-        auth: {
-            user: process.env.SMTP_USER,
-            pass: process.env.SMTP_PASS
-        }
-    });
-}
+// Nodemailer Transporter Initialization
+const transporter = nodemailer.createTransport({
+    host: process.env.SMTP_HOST || 'smtp.gmail.com',
+    port: process.env.SMTP_PORT || 587,
+    secure: process.env.SMTP_PORT == 465, // true for 465, false for other ports
+    auth: {
+        user: process.env.SMTP_USER,
+        pass: process.env.SMTP_PASS
+    }
+});
 
 // Helper to send claim notification email
 async function sendClaimNotification(studentEmail, studentName, activity) {
@@ -347,7 +345,7 @@ async function sendClaimNotification(studentEmail, studentName, activity) {
     };
 
     try {
-        await createTransporter().sendMail(mailOptions);
+        await transporter.sendMail(mailOptions);
         console.log(`📧 Email notification sent to ${studentEmail}`);
     } catch (error) {
         console.error('❌ Failed to send email notification:', error);
@@ -382,7 +380,7 @@ async function sendVisitDoneNotification(studentEmail, studentName, activity) {
     };
 
     try {
-        await createTransporter().sendMail(mailOptions);
+        await transporter.sendMail(mailOptions);
         console.log(`📧 Visit-done email sent to ${studentEmail}`);
     } catch (error) {
         console.error('❌ Failed to send visit-done email:', error);
