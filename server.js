@@ -324,19 +324,42 @@ async function sendClaimNotification(studentEmail, studentName, activity) {
         return;
     }
 
+    let subject = '✅ Transaction Completed';
+    let headerText = 'Transaction Complete!';
+    let bodyText = `Your transaction for <strong>${activity}</strong> at the <strong>${process.env.OFFICE_NAME || 'Engineering Office'}</strong> has been marked as complete.`;
+    let instructions = 'Thank you!';
+
+    // Check if the activity likely involves physical document claiming
+    const lowerActivity = activity.toLowerCase();
+    const isDocument = lowerActivity.includes('document') || 
+                       lowerActivity.includes('clearance') || 
+                       lowerActivity.includes('certificate') || 
+                       lowerActivity.includes('transcript') || 
+                       lowerActivity.includes('cor') ||
+                       lowerActivity.includes('tor') ||
+                       lowerActivity.includes('form') ||
+                       lowerActivity.includes('claiming');
+
+    if (isDocument) {
+        subject = '📦 Document Ready for Claiming';
+        headerText = 'Document Ready!';
+        bodyText = `Your requested document (<strong>${activity}</strong>) is now ready for claiming at the <strong>${process.env.OFFICE_NAME || 'Engineering Office'}</strong>.`;
+        instructions = 'Please bring your <strong>Student ID</strong> when you visit the office to claim it.';
+    }
+
     const mailOptions = {
         from: process.env.EMAIL_FROM || `"Logbook System" <${process.env.SMTP_USER}>`,
         to: studentEmail,
-        subject: '📦 Document Ready for Claiming',
+        subject: subject,
         html: `
             <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden;">
                 <div style="background-color: #2563eb; color: white; padding: 24px; text-align: center;">
-                    <h1 style="margin: 0; font-size: 20px;">Document Ready!</h1>
+                    <h1 style="margin: 0; font-size: 20px;">${headerText}</h1>
                 </div>
                 <div style="padding: 24px; color: #1e293b; line-height: 1.6;">
                     <p>Hi <strong>${studentName}</strong>,</p>
-                    <p>Your requested document (<strong>${activity}</strong>) is now ready for claiming at the <strong>${process.env.OFFICE_NAME || 'Engineering Office'}</strong>.</p>
-                    <p>Please bring your <strong>Student ID</strong> when you visit the office to claim it.</p>
+                    <p>${bodyText}</p>
+                    <p>${instructions}</p>
                     <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 24px 0;">
                     <p style="font-size: 12px; color: #64748b;">This is an automated notification from the Logbook System. Please do not reply to this email.</p>
                 </div>
