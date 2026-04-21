@@ -53,15 +53,22 @@
                         <i data-lucide="settings-2" class="w-5 h-5"></i>
                     </div>
                     <div>
-                        <h2 class="font-black text-slate-900 dark:text-white leading-none text-base md:text-lg">System Settings</h2>
-                        <p class="text-[10px] md:text-xs text-slate-500 dark:text-slate-400 mt-0.5">Configure & customize your system</p>
+                        <h2 class="font-black text-slate-900 dark:text-white leading-none text-base md:text-lg">System
+                            Settings</h2>
+                        <p class="text-[10px] md:text-xs text-slate-500 dark:text-slate-400 mt-0.5">Configure &
+                            customize your system</p>
                     </div>
                 </div>
                 <!-- User Profile -->
-                <div class="hidden lg:flex items-center gap-3 px-4 py-2 bg-slate-50 dark:bg-slate-700/50 rounded-2xl border border-slate-100 dark:border-slate-600">
-                    <div class="w-8 h-8 rounded-full bg-violet-600 text-white flex items-center justify-center text-xs font-black shadow-sm">S</div>
+                <div
+                    class="hidden lg:flex items-center gap-3 px-4 py-2 bg-slate-50 dark:bg-slate-700/50 rounded-2xl border border-slate-100 dark:border-slate-600">
+                    <div
+                        class="w-8 h-8 rounded-full bg-violet-600 text-white flex items-center justify-center text-xs font-black shadow-sm">
+                        S</div>
                     <div class="flex flex-col">
-                        <span class="text-[10px] font-black text-slate-900 dark:text-white leading-tight user-email">Staff User</span>
+                        <span
+                            class="text-[10px] font-black text-slate-900 dark:text-white leading-tight user-email">Staff
+                            User</span>
                         <span class="text-[9px] font-bold text-slate-400 leading-tight">Admin Access</span>
                     </div>
                 </div>
@@ -105,9 +112,6 @@
                 <a href="#faculty-section"
                     class="text-xs font-bold px-4 py-2 rounded-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 dark:text-slate-300 hover:border-violet-300 hover:text-violet-600 transition-all">👨‍🏫
                     Faculty</a>
-                <a href="#emails-section"
-                    class="text-xs font-bold px-4 py-2 rounded-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 dark:text-slate-300 hover:border-violet-300 hover:text-violet-600 transition-all">📧
-                    Emails</a>
                 <a href="#security-section"
                     class="text-xs font-bold px-4 py-2 rounded-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 dark:text-slate-300 hover:border-violet-300 hover:text-violet-600 transition-all">🔐
                     Security</a>
@@ -122,9 +126,11 @@
                     <div class="bg-blue-50 p-2 rounded-xl text-blue-600"><i data-lucide="building-2"
                             class="w-5 h-5"></i></div>
                     <div>
-                        <h3 class="font-black text-slate-900 dark:text-white text-base md:text-lg leading-none">Department & Office
+                        <h3 class="font-black text-slate-900 dark:text-white text-base md:text-lg leading-none">
+                            Department & Office
                             Configuration</h3>
-                        <p class="text-[10px] md:text-xs text-slate-500 dark:text-slate-400 mt-1">Customize office identity</p>
+                        <p class="text-[10px] md:text-xs text-slate-500 dark:text-slate-400 mt-1">Customize office
+                            identity</p>
                     </div>
                 </div>
                 <div class="p-8 grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -370,105 +376,29 @@
                             </button>
                         </div>
                     </div>
+
+                    <!-- Student Cache Purge (Fix stale IDs) -->
+                    <div class="border-t border-slate-100 pt-6">
+                        <div
+                            class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 bg-amber-50 rounded-2xl border border-amber-100">
+                            <div>
+                                <p class="font-bold text-amber-800 text-sm">Purge & Refresh Student Directory</p>
+                                <p class="text-[11px] text-amber-600">Wipes the local student cache and downloads a fresh
+                                    directory from the cloud. Useful when old Student IDs still resolve.
+                                </p>
+                            </div>
+                            <button id="purgeCacheBtn"
+                                class="flex-shrink-0 bg-amber-600 hover:bg-amber-700 text-white font-bold px-5 py-2.5 rounded-xl transition-all flex items-center gap-2 text-sm">
+                                <i data-lucide="trash-2" class="w-4 h-4"></i> Purge & Refresh Now
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </section>
 
             <!-- ============================================================ -->
-            <!-- Section 6: Email Notifications -->
+            <!-- Section 5: Faculty Management -->
             <!-- ============================================================ -->
-            <section id="emails-section"
-                class="settings-section bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden">
-                <div class="px-8 py-5 border-b border-slate-100 dark:border-slate-700 flex items-center gap-3">
-                    <div class="bg-indigo-50 p-2 rounded-xl text-indigo-600"><i data-lucide="mail"
-                            class="w-5 h-5"></i></div>
-                    <div>
-                        <h3 class="font-black text-slate-900 dark:text-white text-lg leading-none">Email Notifications</h3>
-                        <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">Customize automated email alerts & templates</p>
-                    </div>
-                </div>
-                <div class="p-8 space-y-10">
-                    <div class="text-[11px] bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 p-4 rounded-xl border border-amber-100 dark:border-amber-900/50">
-                        <p class="font-black flex items-center gap-2"><i data-lucide="info" class="w-3.5 h-3.5"></i> AVAILABLE PLACEHOLDERS:</p>
-                        <ul class="mt-2 space-y-1 font-bold">
-                            <li><code class="bg-amber-200/50 dark:bg-amber-800/50 px-1.5 py-0.5 rounded">{{name}}</code> - Student Name</li>
-                            <li><code class="bg-amber-200/50 dark:bg-amber-800/50 px-1.5 py-0.5 rounded">{{activity}}</code> - Purpose of Visit</li>
-                            <li><code class="bg-amber-200/50 dark:bg-amber-800/50 px-1.5 py-0.5 rounded">{{office}}</code> - Office Display Name</li>
-                        </ul>
-                    </div>
-
-                    <!-- Template: Standard Completion -->
-                    <div class="space-y-4">
-                        <div class="flex items-center gap-2">
-                            <i data-lucide="check-circle-2" class="w-4 h-4 text-emerald-500"></i>
-                            <label class="text-xs font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">✅ Transaction Completed</label>
-                        </div>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div class="space-y-2">
-                                <span class="text-[10px] font-black text-slate-400">Subject Line</span>
-                                <input id="s_email_subject_completed" type="text" class="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-4 py-2.5 text-xs font-semibold bg-slate-50 dark:bg-slate-700">
-                            </div>
-                            <div class="space-y-2">
-                                <span class="text-[10px] font-black text-slate-400">Message Body</span>
-                                <textarea id="s_email_body_completed" rows="4" class="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-4 py-2.5 text-xs font-semibold bg-slate-50 dark:bg-slate-700"></textarea>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Template: Document Ready -->
-                    <div class="space-y-4 pt-6 border-t border-slate-100 dark:border-slate-700">
-                        <div class="flex items-center gap-2">
-                            <i data-lucide="package" class="w-4 h-4 text-blue-500"></i>
-                            <label class="text-xs font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">📦 Document Ready</label>
-                        </div>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div class="space-y-2">
-                                <span class="text-[10px] font-black text-slate-400">Subject Line</span>
-                                <input id="s_email_subject_document_ready" type="text" class="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-4 py-2.5 text-xs font-semibold bg-slate-50 dark:bg-slate-700">
-                            </div>
-                            <div class="space-y-2">
-                                <span class="text-[10px] font-black text-slate-400">Message Body</span>
-                                <textarea id="s_email_body_document_ready" rows="4" class="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-4 py-2.5 text-xs font-semibold bg-slate-50 dark:bg-slate-700"></textarea>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Template: Auto-Checkout -->
-                    <div class="space-y-4 pt-6 border-t border-slate-100 dark:border-slate-700">
-                        <div class="flex items-center gap-2">
-                            <i data-lucide="clock" class="w-4 h-4 text-amber-500"></i>
-                            <label class="text-xs font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">⏰ Auto-Checkout Notice</label>
-                        </div>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div class="space-y-2">
-                                <span class="text-[10px] font-black text-slate-400">Subject Line</span>
-                                <input id="s_email_subject_auto_checkout" type="text" class="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-4 py-2.5 text-xs font-semibold bg-slate-50 dark:bg-slate-700">
-                            </div>
-                            <div class="space-y-2">
-                                <span class="text-[10px] font-black text-slate-400">Message Body</span>
-                                <textarea id="s_email_body_auto_checkout" rows="4" class="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-4 py-2.5 text-xs font-semibold bg-slate-50 dark:bg-slate-700"></textarea>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Template: Force Clear -->
-                    <div class="space-y-4 pt-6 border-t border-slate-100 dark:border-slate-700">
-                        <div class="flex items-center gap-2">
-                            <i data-lucide="eraser" class="w-4 h-4 text-red-500"></i>
-                            <label class="text-xs font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">🧹 Session Cleared Notice</label>
-                        </div>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div class="space-y-2">
-                                <span class="text-[10px] font-black text-slate-400">Subject Line</span>
-                                <input id="s_email_subject_force_clear" type="text" class="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-4 py-2.5 text-xs font-semibold bg-slate-50 dark:bg-slate-700">
-                            </div>
-                            <div class="space-y-2">
-                                <span class="text-[10px] font-black text-slate-400">Message Body</span>
-                                <textarea id="s_email_body_force_clear" rows="4" class="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-4 py-2.5 text-xs font-semibold bg-slate-50 dark:bg-slate-700"></textarea>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </section>
             <section id="faculty-section"
                 class="settings-section bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden">
                 <div class="px-8 py-5 border-b border-slate-100 dark:border-slate-700 flex items-center gap-3">

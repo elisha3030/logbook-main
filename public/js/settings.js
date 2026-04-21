@@ -458,6 +458,39 @@ export default class SettingsManager {
         } catch { this.showToast('Maintenance failed', 'error'); }
     }
 
+    async purgeStudentCache() {
+        const confirmed = confirm('This will WIPE the entire local student directory and download a fresh copy from the cloud. This solves issues where old Student IDs are still working. \n\nContinue?');
+        if (!confirmed) return;
+
+        const btn = document.getElementById('purgeCacheBtn');
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = `<i data-lucide="loader" class="w-4 h-4 animate-spin"></i> Purging...`;
+            lucide.createIcons();
+        }
+
+        try {
+            const res = await fetch('/api/students/purge', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ staffEmail: this.staffEmail })
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'Purge failed');
+
+            this.showToast('Student directory purged and refreshed successfully!');
+            this.renderAuditLog(); // Log the action
+        } catch (e) {
+            this.showToast(e.message || 'Failed to purge cache', 'error');
+        } finally {
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = `<i data-lucide="trash-2" class="w-4 h-4"></i> Purge & Refresh Now`;
+                lucide.createIcons();
+            }
+        }
+    }
+
     // ----------------------------------------------------------------
     // Event binding
     // ----------------------------------------------------------------
@@ -485,6 +518,7 @@ export default class SettingsManager {
 
         document.getElementById('manualSyncBtn')?.addEventListener('click', () => this.triggerSync());
         document.getElementById('maintenanceBtn')?.addEventListener('click', () => this.runMaintenance());
+        document.getElementById('purgeCacheBtn')?.addEventListener('click', () => this.purgeStudentCache());
         document.getElementById('refreshAuditBtn')?.addEventListener('click', () => this.renderAuditLog());
 
         document.getElementById('clearCheckoutTimeBtn')?.addEventListener('click', () => {

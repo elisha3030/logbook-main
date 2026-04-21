@@ -647,6 +647,67 @@ app.post('/api/students/register', async (req, res) => {
     }
 });
 
+// Purge local student directory and refresh from cloud (admin utility)
+app.post('/api/students/purge', requireAdmin, async (req, res) => {
+    try {
+        const { staffEmail } = req.body || {};
+
+        if (!firebaseInitialized) {
+            return res.status(400).json({ error: 'Firebase is not configured on this server.' });
+        }
+        if (!cloudReachable) {
+            return res.status(503).json({ error: 'Cloud is unreachable. Please try again when online.' });
+        }
+
+        const snapshot = await db.collection('students').get();
+        const students = snapshot.docs.map(doc => ({ barcode: doc.id, ...(doc.data() || {}) }));
+
+        await localDb.run('BEGIN TRANSACTION');
+        try {
+            const del = await localDb.run('DELETE FROM students');
+
+            let inserted = 0;
+            for (const s of students) {
+                const barcode = String(s.barcode || '').trim();
+                if (!barcode) continue;
+                await localDb.run(
+                    'INSERT OR REPLACE INTO students (barcode, name, studentId, course, yearLevel, email, synced, updatedAt) VALUES (?, ?, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP)',
+                    [
+                        barcode,
+                        s.name || null,
+                        s.studentId || null,
+                        s.Course || s.course || null,
+                        s['Year Level'] || s.yearLevel || null,
+                        s.email || null
+                    ]
+                );
+                inserted++;
+            }
+
+            await writeAudit(staffEmail, 'students_purge_refresh', {
+                deletedLocal: del.changes,
+                insertedLocal: inserted,
+                cloudCount: snapshot.size
+            });
+
+            await localDb.run('COMMIT');
+
+            res.json({
+                success: true,
+                deletedLocal: del.changes,
+                insertedLocal: inserted,
+                cloudCount: snapshot.size
+            });
+        } catch (err) {
+            await localDb.run('ROLLBACK');
+            throw err;
+        }
+    } catch (error) {
+        console.error('Error purging student cache:', error);
+        res.status(500).json({ error: 'Failed to purge student cache' });
+    }
+});
+
 // Lookup student and check for active session (Hybrid: SQLite -> Firebase)
 app.get('/api/students/:barcode', async (req, res) => {
     try {
