@@ -6,3 +6,10 @@ config/firebase-key.json
 *.db
 *.db-shm
 *.db-wal
+
+# Local/dev artifacts (do not commit)
+scratch/
+debug-*.js
+dump*.js
+dump*.json
+staff-debug-*.txt

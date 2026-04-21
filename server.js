@@ -653,7 +653,7 @@ app.get('/api/students/:barcode', async (req, res) => {
         const { barcode } = req.params;
         const { officeId = 'engineering-office' } = req.query;
 
-        // STRICKLY LOCAL-FIRST: Only check SQLite for instant response.
+        // STRICTLY LOCAL-FIRST: Only check SQLite for instant response.
         // Prefer exact barcode matches; fall back to studentId only when unambiguous.
         let localStudent = await localDb.get('SELECT * FROM students WHERE barcode = ?', [barcode]);
         if (!localStudent) {
