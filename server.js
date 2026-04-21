@@ -1,28 +1,35 @@
 console.log('--- SERVER STARTING ---');
 require('dotenv').config();
-console.log('1. dotenv initialized');
+
+// Set LOGBOOK_VERBOSE=1 to enable detailed startup logs.
+const VERBOSE_LOGS = process.env.LOGBOOK_VERBOSE === '1';
+function vLog(...args) {
+    if (VERBOSE_LOGS) console.log(...args);
+}
+
+vLog('1. dotenv initialized');
 const express = require('express');
-console.log('2. express loaded');
+vLog('2. express loaded');
 const admin = require('firebase-admin');
-console.log('3. firebase-admin loaded');
+vLog('3. firebase-admin loaded');
 const cors = require('cors');
-console.log('4. cors loaded');
+vLog('4. cors loaded');
 const path = require('path');
-console.log('5. path loaded');
+vLog('5. path loaded');
 const { open } = require('sqlite');
-console.log('6. sqlite loaded');
+vLog('6. sqlite loaded');
 const sqlite3 = require('sqlite3');
-console.log('7. sqlite3 loaded');
+vLog('7. sqlite3 loaded');
 const crypto = require('crypto');
 const multer = require('multer');
 const fs = require('fs');
 const session = require('express-session');
 const SQLiteStore = require('connect-sqlite3')(session);
 const nodemailer = require('nodemailer');
-console.log('9. session & mailer modules loaded');
+vLog('9. session & mailer modules loaded');
 
 const app = express();
-console.log('8. express app created');
+vLog('8. express app created');
 const PORT = process.env.PORT || 3000;
 
 // Multer Storage Configuration
