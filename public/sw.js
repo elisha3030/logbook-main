@@ -1,4 +1,4 @@
-const CACHE_NAME = 'logbook-v2-cache-v7';
+const CACHE_NAME = 'logbook-v2-cache-v8';
 const ASSETS = [
     '/',
     '/index.html',
@@ -7,6 +7,7 @@ const ASSETS = [
     '/scan.html',
     '/history.html',
     '/register.html',
+    '/student-logs.html',
     '/students.html',
     '/settings.html',
     '/css/style.css',
@@ -16,6 +17,7 @@ const ASSETS = [
     '/js/settings.js',
     '/js/scan.js',
     '/js/register.js',
+    '/js/student-logs.js',
     '/js/students.js',
     '/js/logs.js',
     '/js/history.js',

@@ -39,7 +39,7 @@ const storage = multer.diskStorage({
         cb(null, 'proof-' + uniqueSuffix + path.extname(file.originalname));
     }
 });
-const upload = multer({ 
+const upload = multer({
     storage: storage,
     limits: { fileSize: 5 * 1024 * 1024 } // 5MB limit
 });
@@ -331,14 +331,14 @@ async function sendClaimNotification(studentEmail, studentName, activity) {
 
     // Check if the activity likely involves physical document claiming
     const lowerActivity = activity.toLowerCase();
-    const isDocument = lowerActivity.includes('document') || 
-                       lowerActivity.includes('clearance') || 
-                       lowerActivity.includes('certificate') || 
-                       lowerActivity.includes('transcript') || 
-                       lowerActivity.includes('cor') ||
-                       lowerActivity.includes('tor') ||
-                       lowerActivity.includes('form') ||
-                       lowerActivity.includes('claiming');
+    const isDocument = lowerActivity.includes('document') ||
+        lowerActivity.includes('clearance') ||
+        lowerActivity.includes('certificate') ||
+        lowerActivity.includes('transcript') ||
+        lowerActivity.includes('cor') ||
+        lowerActivity.includes('tor') ||
+        lowerActivity.includes('form') ||
+        lowerActivity.includes('claiming');
 
     if (isDocument) {
         subject = '📦 Document Ready for Claiming';
@@ -503,13 +503,86 @@ app.get('/api/students', async (req, res) => {
 // UPDATE student details
 app.put('/api/students/:barcode', async (req, res) => {
     try {
-        const { barcode } = req.params;
-        const { name, studentId, course, yearLevel, email } = req.body;
+        const { barcode: oldBarcode } = req.params;
+        const { name, studentId: newStudentId, course, yearLevel, email } = req.body;
 
-        await localDb.run(
-            'UPDATE students SET name = ?, studentId = ?, course = ?, yearLevel = ?, email = ?, synced = 0 WHERE barcode = ?',
-            [name, studentId, course, yearLevel, email, barcode]
-        );
+        // 1. Get current data to check for ID changes and current mapping
+        const current = await localDb.get('SELECT studentId, barcode FROM students WHERE barcode = ?', oldBarcode);
+        if (!current) return res.status(404).json({ error: 'Student not found' });
+
+        const idChanged = current.studentId !== newStudentId;
+        
+        // SMART SYNC LOGIC:
+        // - If barcode matches the OLD studentId, it means they are using the ID as the barcode (Manual).
+        // - We should update the barcode to the NEW studentId so the old one is "deactivated".
+        // - If they differ, it means the barcode is a specialized chip ID/UID.
+        // - We SHOULD NOT change the barcode, so the physical card keeps working.
+        const barcodeWasMatchingId = current.barcode === current.studentId;
+        const newBarcode = (idChanged && barcodeWasMatchingId) ? newStudentId : oldBarcode;
+
+        console.log(`📝 Smart Sync: Updating ${oldBarcode} (ID: ${current.studentId}) → ${newBarcode} (ID: ${newStudentId})`);
+
+        // 2. Perform local updates
+        if (idChanged || newBarcode !== oldBarcode) {
+            // We use a transaction for consistency
+            await localDb.run('BEGIN TRANSACTION');
+            try {
+                // Update primary record
+                await localDb.run(
+                    'UPDATE students SET barcode = ?, name = ?, studentId = ?, course = ?, yearLevel = ?, email = ?, synced = 0 WHERE barcode = ?',
+                    [newBarcode, name, newStudentId, course, yearLevel, email, oldBarcode]
+                );
+
+                // If this student has a separate legacy/manual record where the barcode equals the OLD studentId,
+                // remove it so the previous studentId can no longer be used for lookups/logging.
+                // This happens when a student was once registered manually (barcode=studentId) but later also got a real card UID.
+                if (idChanged && !barcodeWasMatchingId && current.studentId && current.studentId !== oldBarcode) {
+                    const legacyManual = await localDb.get(
+                        'SELECT barcode FROM students WHERE barcode = ? AND studentId = ?',
+                        [current.studentId, current.studentId]
+                    );
+
+                    if (legacyManual && legacyManual.barcode && legacyManual.barcode !== newBarcode) {
+                        // Migrate any logs tied to the legacy barcode to the canonical barcode.
+                        await localDb.run(
+                            'UPDATE logs SET studentNumber = ?, studentId = ?, email = ?, synced = 0 WHERE studentNumber = ?',
+                            [newBarcode, newStudentId, email, legacyManual.barcode]
+                        );
+
+                        await localDb.run('DELETE FROM students WHERE barcode = ?', legacyManual.barcode);
+                    }
+                }
+
+                // Update logs history to follow the new Student ID
+                // studentNumber follows newBarcode, studentId follows newStudentId
+                await localDb.run(
+                    'UPDATE logs SET studentNumber = ?, studentId = ?, email = ?, synced = 0 WHERE studentNumber = ?',
+                    [newBarcode, newStudentId, email, oldBarcode]
+                );
+
+                await localDb.run('COMMIT');
+
+                // If identifier changed, delete the old cloud record IMMEDIATELY
+                // This prevents the background sync from pulling it back as a 'new' student
+                if (newBarcode !== oldBarcode && firebaseInitialized) {
+                    try {
+                        await db.collection('students').doc(oldBarcode).delete();
+                        console.log(`🗑️ Smart Sync: Deleted ghost record ${oldBarcode} from cloud.`);
+                    } catch (e) {
+                        console.warn(`⏳ Smart Sync: Could not delete ghost ${oldBarcode} (offline/error), it will be cleaned up on next sync.`);
+                    }
+                }
+            } catch (err) {
+                await localDb.run('ROLLBACK');
+                throw err;
+            }
+        } else {
+            // Standard update (no ID or Barcode change)
+            await localDb.run(
+                'UPDATE students SET name = ?, course = ?, yearLevel = ?, email = ?, synced = 0 WHERE barcode = ?',
+                [name, course, yearLevel, email, oldBarcode]
+            );
+        }
 
         res.json({ success: true });
         syncStudentsToCloud();
@@ -581,13 +654,21 @@ app.get('/api/students/:barcode', async (req, res) => {
         const { officeId = 'engineering-office' } = req.query;
 
         // STRICKLY LOCAL-FIRST: Only check SQLite for instant response.
-        // Check both barcode and studentId columns to support manual entry
-        const localStudent = await localDb.get(
-            'SELECT * FROM students WHERE barcode = ? OR studentId = ?',
-            [barcode, barcode]
-        );
+        // Prefer exact barcode matches; fall back to studentId only when unambiguous.
+        let localStudent = await localDb.get('SELECT * FROM students WHERE barcode = ?', [barcode]);
+        if (!localStudent) {
+            const studentIdMatches = await localDb.all('SELECT * FROM students WHERE studentId = ?', [barcode]);
+            if (studentIdMatches.length === 1) {
+                localStudent = studentIdMatches[0];
+            } else if (studentIdMatches.length > 1) {
+                return res.status(409).json({
+                    error: 'Multiple students found with this Student ID. Please use the card barcode or ask staff to resolve duplicates.'
+                });
+            }
+        }
 
         if (localStudent) {
+            const canonicalBarcode = localStudent.barcode;
             const studentData = {
                 id: localStudent.barcode, // Always use the official barcode from the record
                 ...localStudent,
@@ -598,7 +679,7 @@ app.get('/api/students/:barcode', async (req, res) => {
             // Check for active logs in SQLite
             const activeLogs = await localDb.all(
                 'SELECT id, activity, status, timeIn FROM logs WHERE studentNumber = ? AND officeId = ? AND timeOut IS NULL ORDER BY timeIn ASC',
-                [barcode, officeId]
+                [canonicalBarcode, officeId]
             );
 
             return res.json({
@@ -937,7 +1018,7 @@ app.post('/api/logs/:id/upload-proof', upload.single('proof'), async (req, res) 
         }
 
         const proofUrl = `/uploads/proofs/${req.file.filename}`;
-        
+
         await localDb.run(
             'UPDATE logs SET proofImage = ?, synced = 0 WHERE id = ?',
             [proofUrl, id]
@@ -1023,7 +1104,7 @@ app.put('/api/settings', requireAdmin, async (req, res) => {
         }
         await writeAudit(staffEmail, 'settings_update', settings);
         res.json({ success: true });
-        
+
         // Trigger background sync
         syncSettingsToCloud();
     } catch (error) {
@@ -1561,16 +1642,38 @@ app.get('/api/sync-status', async (req, res) => {
 
 // Adaptive sync heartbeat — backs off when cloud is unreachable
 // instead of hammering Firebase with guaranteed-to-fail requests.
+let heartbeatTimer = null;
+let isHeartbeatRunning = false;
 function scheduleSyncHeartbeat() {
+    if (heartbeatTimer) {
+        clearTimeout(heartbeatTimer);
+        heartbeatTimer = null;
+    }
+
     const delay = cloudReachable ? BASE_SYNC_INTERVAL_MS : getSyncRetryDelay();
-    setTimeout(async () => {
-        await syncToCloud();           // push unsynced logs → cloud
-        await syncStudentsToCloud();   // push unsynced students → cloud
-        await syncSettingsToCloud();   // push unsynced settings → cloud
-        await pullLogsFromCloud();     // pull new cloud logs → local
-        await pullStudentsFromCloud(); // pull new cloud students → local
-        await pullSettingsFromCloud(); // pull new cloud settings → local
-        scheduleSyncHeartbeat();       // reschedule with updated delay
+    
+    heartbeatTimer = setTimeout(async () => {
+        if (isHeartbeatRunning) {
+            scheduleSyncHeartbeat(); // Check again after another delay
+            return;
+        }
+        isHeartbeatRunning = true;
+        try {
+            // Push local changes
+            await syncToCloud();
+            await syncStudentsToCloud();
+            await syncSettingsToCloud();
+
+            // Pull cloud updates
+            await pullLogsFromCloud();
+            await pullStudentsFromCloud();
+            await pullSettingsFromCloud();
+        } catch (error) {
+            console.error('⚠️ Heartbeat sync error:', error.message);
+        } finally {
+            isHeartbeatRunning = false;
+            scheduleSyncHeartbeat(); // Reschedule AFTER tasks complete
+        }
     }, delay);
 }
 
@@ -1735,7 +1838,7 @@ async function pullLogsFromCloud({ full = false } = {}) {
                     updated++;
                 }
             } else {
-                    // New record — insert it
+                // New record — insert it
                 await localDb.run(
                     `INSERT INTO logs
                      (id, studentNumber, studentName, studentId, activity, staff, yearLevel, course,
@@ -1852,7 +1955,7 @@ async function startupSync() {
 
         // Step 2: Pull the full student directory from cloud → local
         await pullStudentsFromCloud();
-        
+
         // Step 3: Pull settings from cloud
         await pullSettingsFromCloud();
 

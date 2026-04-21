@@ -69,6 +69,16 @@ export default class SettingsManager {
         this._setVal('s_autoCheckoutTime', this.settings.autoCheckoutTime || '');
         this._setVal('s_sessionTimeoutMinutes', this.settings.sessionTimeoutMinutes || '0');
 
+        // Email Templates
+        this._setVal('s_email_subject_completed', this.settings.email_subject_completed || '✅ Transaction Completed');
+        this._setVal('s_email_body_completed', this.settings.email_body_completed || '');
+        this._setVal('s_email_subject_document_ready', this.settings.email_subject_document_ready || '📦 Document Ready for Claiming');
+        this._setVal('s_email_body_document_ready', this.settings.email_body_document_ready || '');
+        this._setVal('s_email_subject_auto_checkout', this.settings.email_subject_auto_checkout || '⏰ End-of-Day Auto-Checkout');
+        this._setVal('s_email_body_auto_checkout', this.settings.email_body_auto_checkout || '');
+        this._setVal('s_email_subject_force_clear', this.settings.email_subject_force_clear || '🧹 Session Cleared');
+        this._setVal('s_email_body_force_clear', this.settings.email_body_force_clear || '');
+
         // Activities (Support both old array-of-strings and new array-of-objects)
         try {
             const raw = JSON.parse(this.settings.activities || '[]');
@@ -122,7 +132,17 @@ export default class SettingsManager {
             audioFeedback: String(document.getElementById('s_audioFeedback')?.checked ?? true),
             appearanceMode,
             autoCheckoutTime: this._getVal('s_autoCheckoutTime'),
-            sessionTimeoutMinutes: this._getVal('s_sessionTimeoutMinutes') || '0'
+            sessionTimeoutMinutes: this._getVal('s_sessionTimeoutMinutes') || '0',
+            
+            // Email Templates
+            email_subject_completed: this._getVal('s_email_subject_completed'),
+            email_body_completed: this._getVal('s_email_body_completed'),
+            email_subject_document_ready: this._getVal('s_email_subject_document_ready'),
+            email_body_document_ready: this._getVal('s_email_body_document_ready'),
+            email_subject_auto_checkout: this._getVal('s_email_subject_auto_checkout'),
+            email_body_auto_checkout: this._getVal('s_email_body_auto_checkout'),
+            email_subject_force_clear: this._getVal('s_email_subject_force_clear'),
+            email_body_force_clear: this._getVal('s_email_body_force_clear')
         };
 
         try {

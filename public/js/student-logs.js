@@ -420,18 +420,22 @@ class StudentKioskManager {
                 }
                 return;
             }
+
+            if (response.status === 404) {
+                this.showToast('Student not registered. Please see staff.', 'error');
+            } else if (response.status === 409) {
+                const data = await response.json().catch(() => ({}));
+                this.showToast(data?.error || 'Student ID conflict. Please see staff.', 'error');
+            } else {
+                this.showToast('Lookup failed. Please try again.', 'error');
+            }
         } catch (err) {
-            console.warn('Manual lookup failed, using guest mode:', err);
+            console.warn('Manual lookup failed:', err);
+            this.showToast('Server unreachable. Please use your card or see staff.', 'error');
         }
 
-        // Guest fallback
-        this.currentStudent = {
-            id, name,
-            studentId: id,
-            course: 'Guest', yearLevel: 'N/A',
-            isManual: true, activeLogs: []
-        };
-        this.showLandingSelection(this.currentStudent);
+        // Keep the manual form open so the user can correct the ID.
+        document.getElementById('manualId')?.focus();
     }
 
     // ── Scan handler ───────────────────────────────────────────
