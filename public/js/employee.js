@@ -13,6 +13,8 @@ class EmployeeKioskManager {
         this.officeId = 'engineering-office'; // default
         this.systemSettings = {};
         this.offlineRegistry = new OfflineRegistry();
+
+        this.dynamicPurposes = null; // [{ id, icon, label }]
         
         this.categoryMap = {
             'Class/Lecture': ['Subject/Course', 'Laboratory', 'Special Session'],
@@ -43,9 +45,41 @@ class EmployeeKioskManager {
         try {
             this.systemSettings = await loadSystemSettings() || {};
             if (this.systemSettings.officeId) this.officeId = this.systemSettings.officeId;
+
+            // Preferred: kiosk-specific Employee transactions list (simple list)
+            const employeeTx = this._parseStringArray(this.systemSettings.kioskEmployeeTransactions);
+            if (employeeTx.length) {
+                this.dynamicPurposes = employeeTx.map(name => ({
+                    id: name,
+                    icon: this._getPurposeIcon(name),
+                    label: name
+                }));
+            }
         } catch (e) {
             console.warn('⚠️ Could not load system settings:', e.message);
         }
+    }
+
+    _parseStringArray(raw) {
+        if (!raw) return [];
+        try {
+            const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
+            if (!Array.isArray(parsed)) return [];
+            return parsed.map(x => String(x || '').trim()).filter(Boolean);
+        } catch {
+            return [];
+        }
+    }
+
+    _getPurposeIcon(name) {
+        const n = String(name || '').toLowerCase();
+        if (n.includes('class') || n.includes('lecture') || n.includes('teach')) return 'book-open';
+        if (n.includes('meet') || n.includes('group')) return 'users';
+        if (n.includes('research') || n.includes('lab')) return 'microscope';
+        if (n.includes('consult')) return 'heart-handshake';
+        if (n.includes('official') || n.includes('business')) return 'briefcase';
+        if (n.includes('other')) return 'more-horizontal';
+        return 'list-checks';
     }
 
     setupLucide() {
@@ -190,7 +224,7 @@ class EmployeeKioskManager {
         const grid = document.getElementById('purposeGrid');
         if (!grid) return;
 
-        const mainPurposes = [
+        const mainPurposes = this.dynamicPurposes || [
             { id: 'Class/Lecture', icon: 'book-open', label: 'Class / Lecture' },
             { id: 'Meeting', icon: 'users', label: 'Meeting / Group' },
             { id: 'Research', icon: 'microscope', label: 'Research Work' },
@@ -213,6 +247,12 @@ class EmployeeKioskManager {
     }
 
     handlePurposeClick(id, label) {
+        // If using soft-coded purposes, treat as a direct log (no sub-categories)
+        if (this.dynamicPurposes) {
+            this.submitLog(label);
+            return;
+        }
+
         const subItems = this.categoryMap[id];
         if (subItems) {
             this.renderSubPurposes(id, label, subItems);

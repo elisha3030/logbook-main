@@ -102,7 +102,7 @@
                     Department</a>
                 <a href="#activity-section"
                     class="text-xs font-bold px-4 py-2 rounded-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 dark:text-slate-300 hover:border-violet-300 hover:text-violet-600 transition-all">📝
-                    Activities</a>
+                    Kiosk Menus</a>
                 <a href="#scanner-section"
                     class="text-xs font-bold px-4 py-2 rounded-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 dark:text-slate-300 hover:border-violet-300 hover:text-violet-600 transition-all">🖱️
                     Scanner &amp; UI</a>
@@ -171,30 +171,95 @@
                     <div class="bg-emerald-50 p-2 rounded-xl text-emerald-600"><i data-lucide="list-checks"
                             class="w-5 h-5"></i></div>
                     <div>
-                        <h3 class="font-black text-slate-900 dark:text-white text-lg leading-none">Activity & Category
+                        <h3 class="font-black text-slate-900 dark:text-white text-lg leading-none">Kiosk Transaction
                             Management</h3>
-                        <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">Manage visit purpose options and form
-                            fields</p>
+                        <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">Customize kiosk transaction menus</p>
                     </div>
                 </div>
                 <div class="p-8 space-y-8">
+                    <!-- Kiosk Transactions (per-kiosk soft-coded lists) -->
+                    <div class="space-y-8">
+                        <p class="text-xs font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Kiosk Transactions</p>
 
-                    <!-- Activity List CRUD -->
-                    <div class="space-y-3">
-                        <label
-                            class="block text-xs font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Purpose
-                            of Visit Options</label>
-                        <div id="activitiesList" class="space-y-2"></div>
-                        <div class="flex gap-2 mt-3">
-                            <input id="newActivityInput" type="text" placeholder="Add new activity…"
-                                class="flex-grow border border-slate-200 dark:border-slate-600 rounded-xl px-4 py-2.5 text-sm font-semibold text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none bg-slate-50 dark:bg-slate-700">
-                            <button id="addActivityBtn"
-                                class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-4 py-2.5 rounded-xl transition-all flex items-center gap-2 text-sm">
-                                <i data-lucide="plus" class="w-4 h-4"></i> Add
-                            </button>
+                        <!-- Student kiosk transactions -->
+                        <div class="space-y-3">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <p class="font-black text-slate-900 dark:text-white">Student</p>
+                                    <p class="text-[11px] text-slate-400">Shown as transaction/document choices in the Student Kiosk.</p>
+                                </div>
+                            </div>
+                            <div id="studentKioskTransactionsList" class="space-y-2"></div>
+                            <div class="flex gap-2 mt-3">
+                                <input id="newStudentKioskTransactionInput" type="text" placeholder="Add new student transaction…"
+                                    class="flex-grow border border-slate-200 dark:border-slate-600 rounded-xl px-4 py-2.5 text-sm font-semibold text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none bg-slate-50 dark:bg-slate-700">
+                                <button id="addStudentKioskTransactionBtn"
+                                    class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-4 py-2.5 rounded-xl transition-all flex items-center gap-2 text-sm">
+                                    <i data-lucide="plus" class="w-4 h-4"></i> Add
+                                </button>
+                            </div>
+                            <p class="text-[11px] text-slate-400">Drag to reorder. Click a name to edit.</p>
                         </div>
-                        <p class="text-[11px] text-slate-400">These options appear in the "Purpose of Visit" dropdown on
-                            the scan page. Drag to reorder.</p>
+
+                        <!-- Parents kiosk transactions -->
+                        <div class="space-y-3">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <p class="font-black text-slate-900 dark:text-white">Parents</p>
+                                    <p class="text-[11px] text-slate-400">Shown as purpose choices in the Parents Kiosk.</p>
+                                </div>
+                            </div>
+                            <div id="parentsKioskTransactionsList" class="space-y-2"></div>
+                            <div class="flex gap-2 mt-3">
+                                <input id="newParentsKioskTransactionInput" type="text" placeholder="Add new parents transaction…"
+                                    class="flex-grow border border-slate-200 dark:border-slate-600 rounded-xl px-4 py-2.5 text-sm font-semibold text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none bg-slate-50 dark:bg-slate-700">
+                                <button id="addParentsKioskTransactionBtn"
+                                    class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-4 py-2.5 rounded-xl transition-all flex items-center gap-2 text-sm">
+                                    <i data-lucide="plus" class="w-4 h-4"></i> Add
+                                </button>
+                            </div>
+                            <p class="text-[11px] text-slate-400">Drag to reorder. Click a name to edit.</p>
+                        </div>
+
+                        <!-- Visitor kiosk transactions -->
+                        <div class="space-y-3">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <p class="font-black text-slate-900 dark:text-white">Visitor</p>
+                                    <p class="text-[11px] text-slate-400">Shown as purpose choices in the Visitor Kiosk.</p>
+                                </div>
+                            </div>
+                            <div id="visitorKioskTransactionsList" class="space-y-2"></div>
+                            <div class="flex gap-2 mt-3">
+                                <input id="newVisitorKioskTransactionInput" type="text" placeholder="Add new visitor transaction…"
+                                    class="flex-grow border border-slate-200 dark:border-slate-600 rounded-xl px-4 py-2.5 text-sm font-semibold text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none bg-slate-50 dark:bg-slate-700">
+                                <button id="addVisitorKioskTransactionBtn"
+                                    class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-4 py-2.5 rounded-xl transition-all flex items-center gap-2 text-sm">
+                                    <i data-lucide="plus" class="w-4 h-4"></i> Add
+                                </button>
+                            </div>
+                            <p class="text-[11px] text-slate-400">Drag to reorder. Click a name to edit.</p>
+                        </div>
+
+                        <!-- Employee kiosk transactions -->
+                        <div class="space-y-3">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <p class="font-black text-slate-900 dark:text-white">Employee</p>
+                                    <p class="text-[11px] text-slate-400">Shown as purpose choices in the Employee Kiosk.</p>
+                                </div>
+                            </div>
+                            <div id="employeeKioskTransactionsList" class="space-y-2"></div>
+                            <div class="flex gap-2 mt-3">
+                                <input id="newEmployeeKioskTransactionInput" type="text" placeholder="Add new employee transaction…"
+                                    class="flex-grow border border-slate-200 dark:border-slate-600 rounded-xl px-4 py-2.5 text-sm font-semibold text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none bg-slate-50 dark:bg-slate-700">
+                                <button id="addEmployeeKioskTransactionBtn"
+                                    class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-4 py-2.5 rounded-xl transition-all flex items-center gap-2 text-sm">
+                                    <i data-lucide="plus" class="w-4 h-4"></i> Add
+                                </button>
+                            </div>
+                            <p class="text-[11px] text-slate-400">Drag to reorder. Click a name to edit.</p>
+                        </div>
                     </div>
 
                     <!-- Field Toggles -->

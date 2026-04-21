@@ -120,6 +120,44 @@ const COLOR_MAP = {
     slate:  { bg: 'bg-slate-100 dark:bg-slate-700',    text: 'text-slate-600 dark:text-slate-300',  hover: 'hover:border-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700',  badge: 'bg-slate-600' }
 };
 
+function _normalizeActivities(raw) {
+    if (!raw) return [];
+    try {
+        const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
+        if (!Array.isArray(parsed)) return [];
+        return parsed
+            .map(item => {
+                if (typeof item === 'string') return { name: item, options: [] };
+                if (!item || typeof item !== 'object') return null;
+                const name = String(item.name || '').trim();
+                if (!name) return null;
+                const options = Array.isArray(item.options) ? item.options.map(x => String(x)).filter(Boolean) : [];
+                return { name, options };
+            })
+            .filter(Boolean);
+    } catch {
+        return [];
+    }
+}
+
+function _docShortName(name) {
+    const s = String(name || '').trim();
+    const match = s.match(/\(([^)]+)\)\s*$/);
+    if (match && match[1]) return match[1].slice(0, 10);
+    return s.length <= 12 ? s : s.slice(0, 12) + '…';
+}
+
+function _parseStringArray(raw) {
+    if (!raw) return [];
+    try {
+        const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
+        if (!Array.isArray(parsed)) return [];
+        return parsed.map(x => String(x || '').trim()).filter(Boolean);
+    } catch {
+        return [];
+    }
+}
+
 // ─────────────────────────────────────────────────────────────
 class StudentKioskManager {
     constructor() {
@@ -680,47 +718,180 @@ class StudentKioskManager {
         const grid = document.getElementById('documentGrid');
         if (!grid) return;
 
-        // Allow custom doc types from settings to supplement the list
-        let docs = [...DOCUMENT_TYPES];
+        // Highest priority: kiosk-specific Student transaction list
         try {
-            if (this.systemSettings.activities) {
-                const parsed = JSON.parse(this.systemSettings.activities);
-                if (Array.isArray(parsed)) {
-                    parsed.forEach(a => {
-                        const name = typeof a === 'object' ? a.name : a;
-                        if (name.toLowerCase() === 'others' || name.toLowerCase() === 'other') return;
-                        if (!docs.find(d => d.name === name)) {
-                            // Smart icon & color mapping for common admin-added activities
-                            let icon = 'file-text';
-                            let color = 'slate';
-                            const checkName = name.toLowerCase();
-                            
-                            if (checkName.includes('enroll') || checkName.includes('admission')) {
-                                icon = 'clipboard-list'; color = 'blue';
-                            } else if (checkName.includes('inquir') || checkName.includes('question')) {
-                                icon = 'messages-square'; color = 'emerald';
-                            } else if (checkName.includes('consult') || checkName.includes('counsel')) {
-                                icon = 'message-square-text'; color = 'violet';
-                            } else if (checkName.includes('document') || checkName.includes('record') || checkName.includes('grade')) {
-                                icon = 'folders'; color = 'indigo';
-                            } else if (checkName.includes('pay') || checkName.includes('financ') || checkName.includes('fee')) {
-                                icon = 'credit-card'; color = 'rose';
-                            } else if (checkName.includes('id ') || checkName.includes('card')) {
-                                icon = 'badge-help'; color = 'amber';
-                            } else if (checkName.includes('clearance')) {
-                                icon = 'check-circle'; color = 'lime';
-                            } else {
-                                icon = 'file'; color = 'slate';
-                            }
+            const studentTx = _parseStringArray(this.systemSettings.kioskStudentTransactions);
+            const clean = studentTx
+                .map(x => String(x || '').trim())
+                .filter(Boolean)
+                .filter(x => x.toLowerCase() !== 'others' && x.toLowerCase() !== 'other');
 
-                            docs.splice(docs.length - 1, 0, { 
-                                name, short: name, icon, color, category: 'custom', description: 'Student Request'
-                            });
-                        }
-                    });
-                }
+            if (clean.length) {
+                const docs = clean.map(name => {
+                    let icon = 'file-text';
+                    let color = 'slate';
+                    const checkName = name.toLowerCase();
+
+                    if (checkName.includes('certificate') || checkName.includes('cert.')) {
+                        icon = 'file-badge'; color = 'blue';
+                    } else if (checkName.includes('transcript') || checkName.includes('tor')) {
+                        icon = 'scroll'; color = 'violet';
+                    } else if (checkName.includes('registration') || checkName.includes('cor')) {
+                        icon = 'file-check'; color = 'emerald';
+                    } else if (checkName.includes('grades') || checkName.includes('gwa') || checkName.includes('cog')) {
+                        icon = 'award'; color = 'indigo';
+                    } else if (checkName.includes('clearance')) {
+                        icon = 'check-square'; color = 'lime';
+                    } else if (checkName.includes('honorable') || checkName.includes('dismissal')) {
+                        icon = 'door-open'; color = 'orange';
+                    } else if (checkName.includes('promissory') || checkName.includes('note')) {
+                        icon = 'file-signature'; color = 'pink';
+                    }
+
+                    return {
+                        name,
+                        short: _docShortName(name),
+                        icon,
+                        color,
+                        category: 'custom',
+                        description: 'Student Transaction'
+                    };
+                });
+                docs.push({
+                    name: 'Others / Custom Request',
+                    short: 'Others',
+                    icon: 'plus-circle',
+                    color: 'slate',
+                    category: 'other',
+                    description: 'Specify your own need'
+                });
+
+                grid.innerHTML = docs.map(doc => {
+                    const c = COLOR_MAP[doc.color] || COLOR_MAP.slate;
+                    return `
+                        <button onclick="window.kioskManager.selectDocument('${this.escape(doc.name)}')"
+                            class="doc-card kiosk-btn group bg-white dark:bg-slate-800 p-5 rounded-[1.5rem] border-2 border-slate-100 dark:border-slate-700 shadow-lg ${c.hover} dark:hover:border-slate-600 active:scale-95 flex flex-col items-center gap-3 text-center">
+                            <div class="w-14 h-14 rounded-2xl ${c.bg} ${c.text} flex items-center justify-center group-hover:scale-110 transition-transform">
+                                <i data-lucide="${doc.icon}" class="w-7 h-7"></i>
+                            </div>
+                            <div>
+                                <p class="text-sm font-black text-slate-900 dark:text-white leading-tight">${doc.name}</p>
+                                <p class="text-[9px] font-bold text-slate-400 uppercase tracking-wider mt-1">${doc.description}</p>
+                            </div>
+                        </button>
+                    `;
+                }).join('');
+                this.setupLucide();
+                return;
             }
-        } catch {}
+        } catch {
+            // fall back below
+        }
+
+        // Prefer soft-coded document options from Settings (Activities -> "Document Request" options)
+        let docs = null;
+        try {
+            const activities = _normalizeActivities(this.systemSettings.activities);
+            const docAct = activities.find(a => (a.name || '').toLowerCase().includes('document'))
+                || activities.find(a => (a.name || '').toLowerCase().includes('doc'));
+
+            const opts = (docAct?.options || [])
+                .map(x => String(x || '').trim())
+                .filter(Boolean)
+                .filter(x => x.toLowerCase() !== 'others' && x.toLowerCase() !== 'other');
+
+            if (opts.length) {
+                docs = opts.map(name => {
+                    // Reuse existing keyword-based mapping for icon/color
+                    let icon = 'file-text';
+                    let color = 'slate';
+                    const checkName = name.toLowerCase();
+
+                    if (checkName.includes('certificate') || checkName.includes('cert.')) {
+                        icon = 'file-badge'; color = 'blue';
+                    } else if (checkName.includes('transcript') || checkName.includes('tor')) {
+                        icon = 'scroll'; color = 'violet';
+                    } else if (checkName.includes('registration') || checkName.includes('cor')) {
+                        icon = 'file-check'; color = 'emerald';
+                    } else if (checkName.includes('grades') || checkName.includes('gwa') || checkName.includes('cog')) {
+                        icon = 'award'; color = 'indigo';
+                    } else if (checkName.includes('clearance')) {
+                        icon = 'check-square'; color = 'lime';
+                    } else if (checkName.includes('honorable') || checkName.includes('dismissal')) {
+                        icon = 'door-open'; color = 'orange';
+                    } else if (checkName.includes('promissory') || checkName.includes('note')) {
+                        icon = 'file-signature'; color = 'pink';
+                    } else {
+                        icon = 'file-text'; color = 'slate';
+                    }
+
+                    return {
+                        name,
+                        short: _docShortName(name),
+                        icon,
+                        color,
+                        category: 'custom',
+                        description: 'Document Request'
+                    };
+                });
+                docs.push({
+                    name: 'Others / Custom Request',
+                    short: 'Others',
+                    icon: 'plus-circle',
+                    color: 'slate',
+                    category: 'other',
+                    description: 'Specify your own need'
+                });
+            }
+        } catch {
+            // fall back below
+        }
+
+        // Fallback: original curated catalog, plus extra admin-added activities (legacy support)
+        if (!docs) {
+            docs = [...DOCUMENT_TYPES];
+            try {
+                if (this.systemSettings.activities) {
+                    const parsed = JSON.parse(this.systemSettings.activities);
+                    if (Array.isArray(parsed)) {
+                        parsed.forEach(a => {
+                            const name = typeof a === 'object' ? a.name : a;
+                            if (!name) return;
+                            const lower = String(name).toLowerCase();
+                            if (lower === 'others' || lower === 'other') return;
+                            if (!docs.find(d => d.name === name)) {
+                                // Smart icon & color mapping for common admin-added activities
+                                let icon = 'file-text';
+                                let color = 'slate';
+                                const checkName = lower;
+                                
+                                if (checkName.includes('enroll') || checkName.includes('admission')) {
+                                    icon = 'clipboard-list'; color = 'blue';
+                                } else if (checkName.includes('inquir') || checkName.includes('question')) {
+                                    icon = 'messages-square'; color = 'emerald';
+                                } else if (checkName.includes('consult') || checkName.includes('counsel')) {
+                                    icon = 'message-square-text'; color = 'violet';
+                                } else if (checkName.includes('document') || checkName.includes('record') || checkName.includes('grade')) {
+                                    icon = 'folders'; color = 'indigo';
+                                } else if (checkName.includes('pay') || checkName.includes('financ') || checkName.includes('fee')) {
+                                    icon = 'credit-card'; color = 'rose';
+                                } else if (checkName.includes('id ') || checkName.includes('card')) {
+                                    icon = 'badge-help'; color = 'amber';
+                                } else if (checkName.includes('clearance')) {
+                                    icon = 'check-circle'; color = 'lime';
+                                } else {
+                                    icon = 'file'; color = 'slate';
+                                }
+
+                                docs.splice(docs.length - 1, 0, { 
+                                    name, short: name, icon, color, category: 'custom', description: 'Student Request'
+                                });
+                            }
+                        });
+                    }
+                }
+            } catch {}
+        }
 
         grid.innerHTML = docs.map(doc => {
             const c = COLOR_MAP[doc.color] || COLOR_MAP.slate;

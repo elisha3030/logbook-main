@@ -13,6 +13,8 @@ class ParentsKioskManager {
         this.officeId = 'engineering-office'; // default
         this.systemSettings = {};
         this.offlineRegistry = new OfflineRegistry();
+
+        this.dynamicPurposes = null; // [{ id, icon, label }]
         
         this.categoryMap = {
             'Enrollment': ['New Enrollment', 'Re-enrollment', 'Cross-enrollment', 'Transfer'],
@@ -42,9 +44,81 @@ class ParentsKioskManager {
         try {
             this.systemSettings = await loadSystemSettings() || {};
             if (this.systemSettings.officeId) this.officeId = this.systemSettings.officeId;
+
+            // Preferred: kiosk-specific Parents transactions list (simple list)
+            const parentsTx = this._parseStringArray(this.systemSettings.kioskParentsTransactions);
+            if (parentsTx.length) {
+                this.dynamicPurposes = parentsTx.map(name => ({
+                    id: name,
+                    icon: this._getPurposeIcon(name),
+                    label: name
+                }));
+                this.categoryMap = {};
+                return;
+            }
+
+            // Fallback: purposes/sub-options from System Settings (Activities)
+            const activities = this._normalizeActivities(this.systemSettings.activities);
+            if (activities.length) {
+                this.dynamicPurposes = activities.map(a => ({
+                    id: a.name,
+                    icon: this._getPurposeIcon(a.name),
+                    label: a.name
+                }));
+
+                // Build sub-options map from settings. Only add entries that actually have options.
+                const map = {};
+                for (const a of activities) {
+                    if (Array.isArray(a.options) && a.options.length) map[a.name] = a.options;
+                }
+                this.categoryMap = map;
+            }
         } catch (e) {
             console.warn('⚠️ Could not load system settings:', e.message);
         }
+    }
+
+    _parseStringArray(raw) {
+        if (!raw) return [];
+        try {
+            const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
+            if (!Array.isArray(parsed)) return [];
+            return parsed.map(x => String(x || '').trim()).filter(Boolean);
+        } catch {
+            return [];
+        }
+    }
+
+    _normalizeActivities(raw) {
+        if (!raw) return [];
+        try {
+            const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
+            if (!Array.isArray(parsed)) return [];
+            return parsed
+                .map(item => {
+                    if (typeof item === 'string') return { name: item, options: [] };
+                    if (!item || typeof item !== 'object') return null;
+                    const name = String(item.name || '').trim();
+                    if (!name) return null;
+                    const options = Array.isArray(item.options) ? item.options.map(x => String(x)).filter(Boolean) : [];
+                    return { name, options };
+                })
+                .filter(Boolean);
+        } catch {
+            return [];
+        }
+    }
+
+    _getPurposeIcon(name) {
+        const n = String(name || '').toLowerCase();
+        if (n.includes('enroll') || n.includes('admission')) return 'clipboard-list';
+        if (n.includes('inquir') || n.includes('question')) return 'messages-square';
+        if (n.includes('document') || n.includes('record') || n.includes('cert') || n.includes('tor') || n.includes('cor')) return 'file-text';
+        if (n.includes('consult') || n.includes('counsel')) return 'message-square';
+        if (n.includes('pay') || n.includes('financ') || n.includes('fee')) return 'credit-card';
+        if (n.includes('clearance')) return 'check-circle';
+        if (n.includes('other')) return 'more-horizontal';
+        return 'list-checks';
     }
 
     setupLucide() {
@@ -181,7 +255,7 @@ class ParentsKioskManager {
         const grid = document.getElementById('purposeGrid');
         if (!grid) return;
 
-        const mainPurposes = [
+        const mainPurposes = this.dynamicPurposes || [
             { id: 'Enrollment', icon: 'clipboard-list', label: 'Enrollment' },
             { id: 'Inquiries', icon: 'messages-square', label: 'General Inquiries' },
             { id: 'Document Request', icon: 'file-text', label: 'Document Request' },

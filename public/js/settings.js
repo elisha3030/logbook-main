@@ -8,6 +8,10 @@ export default class SettingsManager {
     constructor(staffEmail = '') {
         this.staffEmail = staffEmail;
         this.activities = [];
+        this.kioskStudentTransactions = [];
+        this.kioskParentsTransactions = [];
+        this.kioskVisitorTransactions = [];
+        this.kioskEmployeeTransactions = [];
         this.settings = {};
     }
 
@@ -18,6 +22,7 @@ export default class SettingsManager {
         await this.loadSettings();
         this.applyTheme(this.settings.appearanceMode || 'light');
         this.renderActivities();
+        this.renderKioskTransactions();
         this.renderStaffList();
         this.renderAuditLog();
         this.bindEvents();
@@ -98,6 +103,23 @@ export default class SettingsManager {
                 { name: 'Others', options: [] }
             ];
         }
+
+        // Kiosk transaction lists (array-of-strings)
+        this.kioskStudentTransactions = this._parseStringArray(this.settings.kioskStudentTransactions);
+        this.kioskParentsTransactions = this._parseStringArray(this.settings.kioskParentsTransactions);
+        this.kioskVisitorTransactions = this._parseStringArray(this.settings.kioskVisitorTransactions);
+        this.kioskEmployeeTransactions = this._parseStringArray(this.settings.kioskEmployeeTransactions);
+    }
+
+    _parseStringArray(raw) {
+        if (!raw) return [];
+        try {
+            const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
+            if (!Array.isArray(parsed)) return [];
+            return parsed.map(x => String(x || '').trim()).filter(Boolean);
+        } catch {
+            return [];
+        }
     }
 
     _getDefaultOptions(name) {
@@ -125,6 +147,10 @@ export default class SettingsManager {
             officeId: this._getVal('s_officeId'),
             schoolName: this._getVal('s_schoolName'),
             activities: JSON.stringify(this.activities),
+            kioskStudentTransactions: JSON.stringify(this.kioskStudentTransactions),
+            kioskParentsTransactions: JSON.stringify(this.kioskParentsTransactions),
+            kioskVisitorTransactions: JSON.stringify(this.kioskVisitorTransactions),
+            kioskEmployeeTransactions: JSON.stringify(this.kioskEmployeeTransactions),
             yearLevelEnabled: String(document.getElementById('s_yearLevelEnabled')?.checked ?? true),
             yearLevelRequired: String(document.getElementById('s_yearLevelRequired')?.checked ?? true),
             courseRequired: String(document.getElementById('s_courseRequired')?.checked ?? true),
@@ -168,6 +194,117 @@ export default class SettingsManager {
         } finally {
             [saveBtn, saveBtnBottom].forEach(b => { if (b) { b.disabled = false; b.innerHTML = `<i data-lucide="save" class="w-4 h-4"></i> Save All Changes`; lucide.createIcons(); } });
         }
+    }
+
+    // ----------------------------------------------------------------
+    // Kiosk Transactions renderer (Student + Parents)
+    // ----------------------------------------------------------------
+    renderKioskTransactions() {
+        this._renderSimpleList({
+            containerId: 'studentKioskTransactionsList',
+            items: this.kioskStudentTransactions,
+            onChange: (next) => { this.kioskStudentTransactions = next; }
+        });
+
+        this._renderSimpleList({
+            containerId: 'parentsKioskTransactionsList',
+            items: this.kioskParentsTransactions,
+            onChange: (next) => { this.kioskParentsTransactions = next; }
+        });
+
+        this._renderSimpleList({
+            containerId: 'visitorKioskTransactionsList',
+            items: this.kioskVisitorTransactions,
+            onChange: (next) => { this.kioskVisitorTransactions = next; }
+        });
+
+        this._renderSimpleList({
+            containerId: 'employeeKioskTransactionsList',
+            items: this.kioskEmployeeTransactions,
+            onChange: (next) => { this.kioskEmployeeTransactions = next; }
+        });
+    }
+
+    _renderSimpleList({ containerId, items, onChange }) {
+        const container = document.getElementById(containerId);
+        if (!container) return;
+        container.innerHTML = '';
+
+        const safeItems = Array.isArray(items) ? items : [];
+        safeItems.forEach((name, idx) => {
+            const row = document.createElement('div');
+            row.className = 'bg-slate-50 dark:bg-slate-700/50 border border-slate-100 dark:border-slate-600 rounded-2xl overflow-hidden group';
+            row.dataset.index = String(idx);
+            row.draggable = true;
+
+            row.innerHTML = `
+                <div class="flex items-center gap-2 p-3 bg-slate-100/50 dark:bg-slate-700">
+                    <i data-lucide="grip-vertical" class="w-4 h-4 text-slate-300 cursor-grab flex-shrink-0"></i>
+                    <input type="text" value="${this._escape(name)}"
+                        class="flex-grow bg-transparent border-none outline-none text-sm font-bold text-slate-800 dark:text-white focus:ring-0 min-w-0"
+                        data-simple-list-input="${idx}">
+                    <button data-simple-list-delete="${idx}" class="text-slate-300 hover:text-red-500 transition-colors flex-shrink-0">
+                        <i data-lucide="trash-2" class="w-4 h-4"></i>
+                    </button>
+                </div>
+            `;
+            container.appendChild(row);
+        });
+
+        lucide.createIcons();
+
+        // inline edit
+        container.querySelectorAll('input[data-simple-list-input]').forEach(input => {
+            input.addEventListener('input', (e) => {
+                const index = parseInt(e.target.dataset.simpleListInput, 10);
+                const next = [...safeItems];
+                next[index] = e.target.value;
+                onChange(next);
+            });
+        });
+
+        // delete
+        container.querySelectorAll('[data-simple-list-delete]').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const index = parseInt(e.currentTarget.dataset.simpleListDelete, 10);
+                const next = safeItems.filter((_, i) => i !== index);
+                onChange(next);
+                this.renderKioskTransactions();
+            });
+        });
+
+        // drag reorder
+        this._enableSimpleDragReorder(container, safeItems, onChange);
+    }
+
+    _enableSimpleDragReorder(container, items, onChange) {
+        let dragSrc = null;
+        container.querySelectorAll('[draggable]').forEach(row => {
+            row.addEventListener('dragstart', (e) => {
+                if (e.target.tagName === 'INPUT' || e.target.closest('button')) {
+                    e.preventDefault();
+                    return;
+                }
+                dragSrc = row;
+                row.classList.add('opacity-50');
+            });
+            row.addEventListener('dragend', () => {
+                row.classList.remove('opacity-50');
+            });
+            row.addEventListener('dragover', (e) => { e.preventDefault(); });
+            row.addEventListener('drop', (e) => {
+                e.preventDefault();
+                if (!dragSrc || dragSrc === row) return;
+                const srcIdx = parseInt(dragSrc.dataset.index, 10);
+                const destIdx = parseInt(row.dataset.index, 10);
+                const next = [...items];
+                const moved = next.splice(srcIdx, 1)[0];
+                next.splice(destIdx, 0, moved);
+                onChange(next);
+                this.renderKioskTransactions();
+                dragSrc = null;
+            });
+        });
     }
 
     // ----------------------------------------------------------------
@@ -509,6 +646,54 @@ export default class SettingsManager {
 
         document.getElementById('newActivityInput')?.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') { e.preventDefault(); document.getElementById('addActivityBtn')?.click(); }
+        });
+
+        document.getElementById('addStudentKioskTransactionBtn')?.addEventListener('click', () => {
+            const input = document.getElementById('newStudentKioskTransactionInput');
+            const val = (input?.value || '').trim();
+            if (!val) return;
+            this.kioskStudentTransactions.push(val);
+            input.value = '';
+            this.renderKioskTransactions();
+        });
+        document.getElementById('newStudentKioskTransactionInput')?.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') { e.preventDefault(); document.getElementById('addStudentKioskTransactionBtn')?.click(); }
+        });
+
+        document.getElementById('addParentsKioskTransactionBtn')?.addEventListener('click', () => {
+            const input = document.getElementById('newParentsKioskTransactionInput');
+            const val = (input?.value || '').trim();
+            if (!val) return;
+            this.kioskParentsTransactions.push(val);
+            input.value = '';
+            this.renderKioskTransactions();
+        });
+        document.getElementById('newParentsKioskTransactionInput')?.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') { e.preventDefault(); document.getElementById('addParentsKioskTransactionBtn')?.click(); }
+        });
+
+        document.getElementById('addVisitorKioskTransactionBtn')?.addEventListener('click', () => {
+            const input = document.getElementById('newVisitorKioskTransactionInput');
+            const val = (input?.value || '').trim();
+            if (!val) return;
+            this.kioskVisitorTransactions.push(val);
+            input.value = '';
+            this.renderKioskTransactions();
+        });
+        document.getElementById('newVisitorKioskTransactionInput')?.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') { e.preventDefault(); document.getElementById('addVisitorKioskTransactionBtn')?.click(); }
+        });
+
+        document.getElementById('addEmployeeKioskTransactionBtn')?.addEventListener('click', () => {
+            const input = document.getElementById('newEmployeeKioskTransactionInput');
+            const val = (input?.value || '').trim();
+            if (!val) return;
+            this.kioskEmployeeTransactions.push(val);
+            input.value = '';
+            this.renderKioskTransactions();
+        });
+        document.getElementById('newEmployeeKioskTransactionInput')?.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') { e.preventDefault(); document.getElementById('addEmployeeKioskTransactionBtn')?.click(); }
         });
 
         document.getElementById('addStaffBtn')?.addEventListener('click', () => this.addStaff());

@@ -14,6 +14,9 @@ class VisitorKioskManager {
         this.officeId = 'engineering-office'; // default
         this.systemSettings = {};
         this.offlineRegistry = new OfflineRegistry();
+
+        this.dynamicPurposes = null; // [{ id, icon, label }]
+        this.categoryMap = {}; // { [purposeName]: string[] }
         
         // Idle timer state
         this.idleTimeout = null;
@@ -36,9 +39,82 @@ class VisitorKioskManager {
         try {
             this.systemSettings = await loadSystemSettings() || {};
             if (this.systemSettings.officeId) this.officeId = this.systemSettings.officeId;
+
+            // Preferred: kiosk-specific Visitor transactions list (simple list)
+            const visitorTx = this._parseStringArray(this.systemSettings.kioskVisitorTransactions);
+            if (visitorTx.length) {
+                this.dynamicPurposes = visitorTx.map(name => ({
+                    id: name,
+                    icon: this._getPurposeIcon(name),
+                    label: name
+                }));
+                this.categoryMap = {};
+                return;
+            }
+
+            // Fallback: purposes/sub-options from System Settings (Activities)
+            const activities = this._normalizeActivities(this.systemSettings.activities);
+            if (activities.length) {
+                this.dynamicPurposes = activities.map(a => ({
+                    id: a.name,
+                    icon: this._getPurposeIcon(a.name),
+                    label: a.name
+                }));
+
+                const map = {};
+                for (const a of activities) {
+                    if (Array.isArray(a.options) && a.options.length) map[a.name] = a.options;
+                }
+                this.categoryMap = map;
+            }
         } catch (e) {
             console.warn('⚠️ Could not load system settings:', e.message);
         }
+    }
+
+    _parseStringArray(raw) {
+        if (!raw) return [];
+        try {
+            const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
+            if (!Array.isArray(parsed)) return [];
+            return parsed.map(x => String(x || '').trim()).filter(Boolean);
+        } catch {
+            return [];
+        }
+    }
+
+    _normalizeActivities(raw) {
+        if (!raw) return [];
+        try {
+            const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
+            if (!Array.isArray(parsed)) return [];
+            return parsed
+                .map(item => {
+                    if (typeof item === 'string') return { name: item, options: [] };
+                    if (!item || typeof item !== 'object') return null;
+                    const name = String(item.name || '').trim();
+                    if (!name) return null;
+                    const options = Array.isArray(item.options) ? item.options.map(x => String(x)).filter(Boolean) : [];
+                    return { name, options };
+                })
+                .filter(Boolean);
+        } catch {
+            return [];
+        }
+    }
+
+    _getPurposeIcon(name) {
+        const n = String(name || '').toLowerCase();
+        if (n.includes('meet')) return 'users';
+        if (n.includes('deliver') || n.includes('courier') || n.includes('package')) return 'package';
+        if (n.includes('maint') || n.includes('tech') || n.includes('repair')) return 'wrench';
+        if (n.includes('event')) return 'calendar';
+        if (n.includes('inquir') || n.includes('question')) return 'messages-square';
+        if (n.includes('document') || n.includes('record') || n.includes('cert')) return 'file-text';
+        if (n.includes('enroll') || n.includes('admission')) return 'clipboard-list';
+        if (n.includes('pay') || n.includes('financ') || n.includes('fee')) return 'credit-card';
+        if (n.includes('other')) return 'more-horizontal';
+        return 'list-checks';
     }
 
     setupLucide() {
@@ -185,7 +261,7 @@ class VisitorKioskManager {
         const grid = document.getElementById('purposeGrid');
         if (!grid) return;
 
-        const purposes = [
+        const purposes = this.dynamicPurposes || [
             { id: 'Meeting', icon: 'users', label: 'Meeting / Consultation' },
             { id: 'Delivery', icon: 'package', label: 'Delivery / Courier' },
             { id: 'Maintenance', icon: 'wrench', label: 'Maintenance / Tech' },
@@ -195,7 +271,7 @@ class VisitorKioskManager {
         ];
 
         grid.innerHTML = purposes.map(p => `
-            <button onclick="window.kioskManager.selectPurpose('${p.label.replace(/'/g, "\\'")}')"
+            <button onclick="window.kioskManager.handlePurposeClick('${p.id.replace(/'/g, "\\'")}', '${p.label.replace(/'/g, "\\'")}')"
                 class="purpose-card group bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-xl shadow-slate-200/40 hover:border-violet-500 transition-all flex flex-col items-center gap-4 text-center">
                 <div class="w-16 h-16 rounded-2xl bg-violet-50 dark:bg-violet-900/30 text-violet-600 flex items-center justify-center transition-all shadow-sm group-hover:scale-110">
                     <i data-lucide="${p.icon}" class="w-8 h-8"></i>
@@ -204,6 +280,39 @@ class VisitorKioskManager {
             </button>
         `).join('');
 
+        this.setupLucide();
+    }
+
+    handlePurposeClick(id, label) {
+        const subItems = this.categoryMap[id];
+        if (subItems) {
+            this.renderSubPurposes(id, label, subItems);
+        } else {
+            this.selectPurpose(label);
+        }
+    }
+
+    renderSubPurposes(id, label, items) {
+        const grid = document.getElementById('purposeGrid');
+        if (!grid) return;
+
+        grid.innerHTML = `
+            <div class="col-span-full mb-4 px-2">
+                <p class="text-xs font-black text-violet-500 uppercase tracking-widest mb-1">Specific Reason for</p>
+                <p class="text-3xl font-black text-slate-900 dark:text-white">${label}</p>
+            </div>
+            ${items.map(item => `
+                <button onclick="window.kioskManager.selectPurpose('${label}: ${item.replace(/'/g, "\\'")}')"
+                    class="purpose-card group bg-slate-50 dark:bg-slate-700/50 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-600 hover:border-violet-500 transition-all flex flex-col items-center gap-3 text-center">
+                    <p class="text-base font-bold text-slate-800 dark:text-slate-200">${item}</p>
+                </button>
+            `).join('')}
+            <button onclick="window.kioskManager.renderPurposes()"
+                class="col-span-full mt-6 py-4 text-slate-400 font-bold uppercase tracking-widest text-xs flex items-center justify-center gap-2 hover:text-violet-500 transition-all">
+                <i data-lucide="arrow-left" class="w-4 h-4"></i>
+                Back to Categories
+            </button>
+        `;
         this.setupLucide();
     }
 
