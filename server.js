@@ -340,11 +340,19 @@ async function sendClaimNotification(studentEmail, studentName, activity) {
     const lowerActivity = activity.toLowerCase();
     const isDocument = lowerActivity.includes('document') ||
         lowerActivity.includes('clearance') ||
-        lowerActivity.includes('certificate') ||
+        lowerActivity.includes('cert') || // Covers Certificate and Certification
         lowerActivity.includes('transcript') ||
         lowerActivity.includes('cor') ||
         lowerActivity.includes('tor') ||
         lowerActivity.includes('form') ||
+        lowerActivity.includes('enroll') || // Covers Enrollment
+        lowerActivity.includes('paper') || // Covers Concept Paper
+        lowerActivity.includes('memo') || // Covers Memorandum
+        lowerActivity.includes('dismissal') || // Covers Honorable Dismissal
+        lowerActivity.includes('note') || // Covers Promissory Note
+        lowerActivity.includes('grades') || // Covers Certificate of Grades
+        lowerActivity.includes('gwa') ||
+        lowerActivity.includes('syllabus') || // Covers Course Description / Syllabus
         lowerActivity.includes('claiming');
 
     if (isDocument) {

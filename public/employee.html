@@ -53,6 +53,10 @@
 
         .dark .step-line { background: #334155; }
         .dark .step-line.done { background: #64748b; }
+
+        /* Ensure icon turns white/dark regardless of global !important rules */
+        .purpose-card:hover .group-hover\:text-white { color: white !important; }
+        .dark .purpose-card:hover .dark\:group-hover\:text-slate-900 { color: #0f172a !important; }
     </style>
 </head>
 
@@ -135,7 +139,7 @@
                 </div>
 
                 <button id="toPurposeBtn"
-                    class="w-full bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-black py-6 rounded-2xl shadow-xl transition-all flex items-center justify-center gap-3 active:scale-95 text-xl">
+                    class="w-full bg-slate-900 hover:bg-slate-800 dark:bg-white dark:hover:bg-slate-100 text-white dark:text-slate-900 font-black py-6 rounded-2xl shadow-xl transition-all flex items-center justify-center gap-3 active:scale-95 text-xl">
                     Next Section
                     <i data-lucide="arrow-right" class="w-6 h-6"></i>
                 </button>
@@ -179,7 +183,7 @@
 
             <div class="pt-8 w-full max-w-xs space-y-4">
                 <button onclick="window.location.href='index.html'"
-                    class="w-full bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-black py-5 rounded-2xl shadow-xl transition-all hover:-translate-y-1 active:scale-95 text-lg">
+                    class="w-full bg-slate-900 hover:bg-slate-800 dark:bg-white dark:hover:bg-slate-100 text-white dark:text-slate-900 font-black py-5 rounded-2xl shadow-xl transition-all hover:-translate-y-1 active:scale-95 text-lg">
                     Done & Exit
                 </button>
             </div>
@@ -200,7 +204,7 @@
             <div class="relative h-2 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
                 <div id="idleBar" class="idle-progress absolute inset-0 bg-slate-500"></div>
             </div>
-            <button id="resumeSessionBtn" class="w-full bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-black py-5 rounded-2xl shadow-xl active:scale-95 transition-all text-xl">
+            <button id="resumeSessionBtn" class="w-full bg-slate-900 hover:bg-slate-800 dark:bg-white dark:hover:bg-slate-100 text-white dark:text-slate-900 font-black py-5 rounded-2xl shadow-xl active:scale-95 transition-all text-xl">
                 Continue Working
             </button>
         </div>

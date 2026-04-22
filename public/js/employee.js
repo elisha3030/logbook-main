@@ -235,8 +235,8 @@ class EmployeeKioskManager {
 
         grid.innerHTML = mainPurposes.map(p => `
             <button onclick="window.kioskManager.handlePurposeClick('${p.id}', '${p.label.replace(/'/g, "\\'")}')"
-                class="purpose-card group bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-xl shadow-slate-200/40 hover:border-slate-900 dark:hover:border-white transition-all flex flex-col items-center gap-4 text-center">
-                <div class="w-14 h-14 rounded-2xl bg-slate-50 dark:bg-slate-700 text-slate-600 dark:text-slate-300 flex items-center justify-center group-hover:bg-slate-900 dark:group-hover:bg-white group-hover:text-white dark:group-hover:text-slate-900 transition-all">
+                class="purpose-card group bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-xl shadow-slate-200/40 hover:border-slate-900 dark:hover:border-white hover:shadow-2xl hover:-translate-y-1 transition-all flex flex-col items-center gap-4 text-center">
+                <div class="w-14 h-14 rounded-2xl bg-slate-50 dark:bg-slate-700 text-slate-600 dark:text-slate-300 flex items-center justify-center group-hover:scale-110 transition-all">
                     <i data-lucide="${p.icon}" class="w-7 h-7"></i>
                 </div>
                 <p class="text-base font-black text-slate-900 dark:text-white uppercase tracking-tight">${p.label}</p>
@@ -272,7 +272,7 @@ class EmployeeKioskManager {
             </div>
             ${items.map(item => `
                 <button onclick="window.kioskManager.submitLog('${label}: ${item.replace(/'/g, "\\'")}')"
-                    class="purpose-card group bg-slate-50 dark:bg-slate-700/50 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-600 hover:border-slate-900 dark:hover:border-white transition-all flex flex-col items-center gap-3 text-center">
+                    class="purpose-card group bg-slate-50 dark:bg-slate-700/50 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-600 hover:border-slate-900 dark:hover:border-white hover:shadow-xl transition-all flex flex-col items-center gap-3 text-center">
                     <p class="text-base font-bold text-slate-800 dark:text-slate-200">${item}</p>
                 </button>
             `).join('')}
