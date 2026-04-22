@@ -96,6 +96,38 @@ const DOCUMENT_TYPES = [
         description: 'Departmental clearance'
     },
     {
+        name: 'Enrollment',
+        short: 'Enroll',
+        icon: 'clipboard-list',
+        color: 'blue',
+        category: 'form',
+        description: 'Student Request'
+    },
+    {
+        name: 'Inquiries',
+        short: 'Inquiry',
+        icon: 'messages-square',
+        color: 'emerald',
+        category: 'other',
+        description: 'Student Request'
+    },
+    {
+        name: 'Document Request',
+        short: 'Request',
+        icon: 'folders',
+        color: 'indigo',
+        category: 'other',
+        description: 'Student Request'
+    },
+    {
+        name: 'Consultation',
+        short: 'Consult',
+        icon: 'message-square-text',
+        color: 'violet',
+        category: 'other',
+        description: 'Student Request'
+    },
+    {
         name: 'Others / Custom Request',
         short: 'Others',
         icon: 'plus-circle',
@@ -788,65 +820,7 @@ class StudentKioskManager {
             // fall back below
         }
 
-        // Prefer soft-coded document options from Settings (Activities -> "Document Request" options)
         let docs = null;
-        try {
-            const activities = _normalizeActivities(this.systemSettings.activities);
-            const docAct = activities.find(a => (a.name || '').toLowerCase().includes('document'))
-                || activities.find(a => (a.name || '').toLowerCase().includes('doc'));
-
-            const opts = (docAct?.options || [])
-                .map(x => String(x || '').trim())
-                .filter(Boolean)
-                .filter(x => x.toLowerCase() !== 'others' && x.toLowerCase() !== 'other');
-
-            if (opts.length) {
-                docs = opts.map(name => {
-                    // Reuse existing keyword-based mapping for icon/color
-                    let icon = 'file-text';
-                    let color = 'slate';
-                    const checkName = name.toLowerCase();
-
-                    if (checkName.includes('certificate') || checkName.includes('cert.')) {
-                        icon = 'file-badge'; color = 'blue';
-                    } else if (checkName.includes('transcript') || checkName.includes('tor')) {
-                        icon = 'scroll'; color = 'violet';
-                    } else if (checkName.includes('registration') || checkName.includes('cor')) {
-                        icon = 'file-check'; color = 'emerald';
-                    } else if (checkName.includes('grades') || checkName.includes('gwa') || checkName.includes('cog')) {
-                        icon = 'award'; color = 'indigo';
-                    } else if (checkName.includes('clearance')) {
-                        icon = 'check-square'; color = 'lime';
-                    } else if (checkName.includes('honorable') || checkName.includes('dismissal')) {
-                        icon = 'door-open'; color = 'orange';
-                    } else if (checkName.includes('promissory') || checkName.includes('note')) {
-                        icon = 'file-signature'; color = 'pink';
-                    } else {
-                        icon = 'file-text'; color = 'slate';
-                    }
-
-                    return {
-                        name,
-                        short: _docShortName(name),
-                        icon,
-                        color,
-                        category: 'custom',
-                        description: 'Document Request'
-                    };
-                });
-                docs.push({
-                    name: 'Others / Custom Request',
-                    short: 'Others',
-                    icon: 'plus-circle',
-                    color: 'slate',
-                    category: 'other',
-                    description: 'Specify your own need'
-                });
-            }
-        } catch {
-            // fall back below
-        }
-
         // Fallback: original curated catalog, plus extra admin-added activities (legacy support)
         if (!docs) {
             docs = [...DOCUMENT_TYPES];
