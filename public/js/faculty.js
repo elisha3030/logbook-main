@@ -6,25 +6,8 @@
  */
 
 const params = new URLSearchParams(window.location.search);
-let staffName = params.get('staff');
+const staffName = params.get('staff');
 let officeId = 'engineering-office'; // default, overridden by settings
-
-let _sessionUser = null;
-
-async function loadSessionUser() {
-    if (_sessionUser) return _sessionUser;
-    try {
-        const res = await fetch('/api/auth/session');
-        const data = await res.json();
-        if (data?.authenticated && data?.user) {
-            _sessionUser = data.user;
-            return _sessionUser;
-        }
-    } catch (_) {
-        // auth.js handles redirects when unauthenticated; keep faculty.js resilient
-    }
-    return null;
-}
 
 // Helper to normalize names (lowercase, single space only, trimmed)
 const normalize = (s) => (s || '').toLowerCase().replace(/\s+/g, ' ').trim();
@@ -1138,35 +1121,6 @@ async function init() {
     const queueCard = document.getElementById('queueCard');
     const facultyNameHeader = document.getElementById('facultyNameHeader');
 
-    // Enforce "only their own hub" for faculty accounts.
-    // We bind the hub name to the local account's displayName.
-    const sessionUser = await loadSessionUser();
-    const role = String(sessionUser?.role || '').toLowerCase().trim();
-    const isFaculty = role === 'faculty' || !!sessionUser?.isFaculty;
-    const isAdmin = (role === 'admin' || role === 'superadmin') || (!!sessionUser?.isAdmin && !isFaculty);
-
-    if (isFaculty && !isAdmin) {
-        const enforcedName = String(sessionUser?.displayName || '').trim();
-        if (!enforcedName) {
-            showToast('Your faculty account is missing a display name. Ask an admin to set it in Settings.', 'error');
-            setTimeout(() => { window.location.href = 'index.html'; }, 1200);
-            return;
-        }
-
-        // Force hub to match the faculty member's name (no hub switching).
-        staffName = enforcedName;
-
-        // Keep URL in sync (so refresh/bookmarks always stay locked).
-        const nextUrl = new URL(window.location.href);
-        if (nextUrl.searchParams.get('staff') !== enforcedName) {
-            nextUrl.searchParams.set('staff', enforcedName);
-            window.history.replaceState(null, '', nextUrl.pathname + '?' + nextUrl.searchParams.toString() + nextUrl.hash);
-        }
-
-        // Never show the "select your name" state for faculty accounts.
-        noFacultyState?.classList.add('hidden');
-    }
-
     // Load office settings
     try {
         const settings = await loadSystemSettings();
@@ -1223,8 +1177,8 @@ async function init() {
     });
 
     // Clock out button
-    document.getElementById('clockOutBtn')?.addEventListener('click', async () => {
-        if (await showConfirmModal('Clock Out', 'Are you sure you want to clock out?')) {
+    document.getElementById('clockOutBtn')?.addEventListener('click', () => {
+        if (confirm('Are you sure you want to clock out?')) {
             handleClockOut();
         }
     });
@@ -1233,8 +1187,8 @@ async function init() {
     document.getElementById('proofUploadInput')?.addEventListener('change', handleFileSelected);
 
     // Header Logout button listener
-    document.getElementById('logoutHeaderBtn')?.addEventListener('click', async () => {
-        if (await showConfirmModal('Log Out', 'Are you sure you want to log out of the system?')) {
+    document.getElementById('logoutHeaderBtn')?.addEventListener('click', () => {
+        if (confirm('Are you sure you want to log out of the system?')) {
             window.authManager.handleLogout();
         }
     });

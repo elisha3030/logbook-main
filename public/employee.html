@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script>/* Set theme class BEFORE any CSS loads to prevent flash */
+        (function () { try { var t = localStorage.getItem('logbook-theme'); if (!t) t = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'; var isDark = t === 'dark'; document.documentElement.classList.toggle('dark', isDark); document.documentElement.style.colorScheme = isDark ? 'dark' : 'light'; } catch (e) { } })();
+    </script>
+    <title>Employee Kiosk — Registration</title>
+    <link rel="icon"
+        href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📖</text></svg>">
+    <script src="/vendor/tailwindcss.js"></script>
+    <script src="/js/lucide.js"></script>
+    <link rel="stylesheet" href="css/style.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+
+        /* Kiosk glow pulse */
+        @keyframes scanPulse {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(100, 116, 139, 0.4); }
+            50% { box-shadow: 0 0 0 24px rgba(100, 116, 139, 0); }
+        }
+        .scan-pulse { animation: scanPulse 2s ease-in-out infinite; }
+
+        /* Step indicator line */
+        .step-line { flex: 1; height: 2px; background: #e2e8f0; }
+        .step-line.done { background: #64748b; }
+
+        /* Card hover */
+        .purpose-card { transition: all 0.25s cubic-bezier(0.34,1.56,0.64,1); }
+        .purpose-card:hover { transform: translateY(-4px) scale(1.02); }
+        .purpose-card:active { transform: scale(0.97); }
+
+        /* Large kiosk tap targets */
+        .kiosk-btn { min-height: 80px; cursor: pointer; }
+
+        /* Idle overlay */
+        #idleOverlay {
+            display: none;
+            position: fixed; inset:0; z-index:200;
+            background: rgba(15, 23, 42, 0.9);
+            backdrop-filter: blur(10px);
+            align-items: center; justify-content: center;
+        }
+        #idleOverlay.active { display: flex; }
+
+        @keyframes progressShrink {
+            from { width: 100%; } to { width: 0%; }
+        }
+        .idle-progress { animation: progressShrink var(--idle-duration, 30s) linear forwards; }
+
+        .dark .step-line { background: #334155; }
+        .dark .step-line.done { background: #64748b; }
+
+        /* Ensure icon turns white/dark regardless of global !important rules */
+        .purpose-card:hover .group-hover\:text-white { color: white !important; }
+        .dark .purpose-card:hover .dark\:group-hover\:text-slate-900 { color: #0f172a !important; }
+    </style>
+</head>
+
+<body class="bg-white dark:bg-slate-900 text-slate-900 dark:text-white font-sans min-h-screen flex flex-col">
+    <!-- Ambient gradient (dark mode only) -->
+    <div class="fixed inset-0 -z-10 overflow-hidden pointer-events-none dark:block hidden">
+        <div class="absolute -top-[15%] -left-[5%] w-[50%] h-[50%] rounded-full bg-slate-800/10 blur-[140px]"></div>
+        <div class="absolute bottom-0 right-0 w-[40%] h-[40%] rounded-full bg-indigo-800/10 blur-[140px]"></div>
+    </div>
+
+    <!-- ── HEADER ── -->
+    <header class="h-16 bg-white/80 dark:bg-slate-800/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-700 px-6 flex items-center justify-between sticky top-0 z-40 shadow-sm">
+        <a href="index.html" class="flex items-center gap-3 hover:opacity-80 transition-opacity">
+            <div class="bg-slate-900 dark:bg-slate-100 p-2 rounded-xl text-white dark:text-slate-900 shadow-lg">
+                <i data-lucide="briefcase" class="w-5 h-5"></i>
+            </div>
+            <span class="text-lg font-black tracking-tight text-slate-900 dark:text-white">Employee<span class="text-slate-500"> Kiosk</span></span>
+        </a>
+        <div class="flex items-center gap-3">
+            <div class="hidden sm:flex flex-col items-end">
+                <p id="liveClock" class="text-lg font-black text-slate-800 dark:text-white tabular-nums">--:--</p>
+                <p id="liveDate" class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">---</p>
+            </div>
+            <a href="index.html" class="flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 font-bold text-sm hover:bg-slate-200 dark:hover:bg-slate-600 transition-all">
+                <i data-lucide="arrow-left" class="w-4 h-4"></i>
+                <span class="hidden sm:inline">Back</span>
+            </a>
+        </div>
+    </header>
+
+    <!-- ── STEP INDICATOR ── -->
+    <div id="stepIndicator" class="hidden bg-white dark:bg-slate-800 border-b border-slate-100 dark:border-slate-700 px-8 py-4">
+        <div class="max-w-md mx-auto flex items-center gap-2">
+            <div class="flex flex-col items-center gap-1.5">
+                <div id="step1dot" class="w-8 h-8 rounded-full flex items-center justify-center text-xs font-black transition-all duration-300 bg-slate-900 dark:bg-white text-white dark:text-slate-900 shadow-lg">1</div>
+                <span class="text-[9px] font-black uppercase tracking-widest text-slate-400">Identify</span>
+            </div>
+            <div id="stepLine1" class="step-line"></div>
+            <div class="flex flex-col items-center gap-1.5">
+                <div id="step2dot" class="w-8 h-8 rounded-full flex items-center justify-center text-xs font-black transition-all duration-300 bg-slate-200 dark:bg-slate-700 text-slate-500">2</div>
+                <span class="text-[9px] font-black uppercase tracking-widest text-slate-400">Purpose</span>
+            </div>
+            <div id="stepLine2" class="step-line"></div>
+            <div class="flex flex-col items-center gap-1.5">
+                <div id="step3dot" class="w-8 h-8 rounded-full flex items-center justify-center text-xs font-black transition-all duration-300 bg-slate-200 dark:bg-slate-700 text-slate-500">3</div>
+                <span class="text-[9px] font-black uppercase tracking-widest text-slate-400">Done</span>
+            </div>
+        </div>
+    </div>
+
+    <main class="flex-grow flex flex-col pt-8">
+
+        <!-- ══════════════════════════════════════════════════════ -->
+        <!-- SCREEN 1 — EMPLOYEE IDENTIFICATION                    -->
+        <!-- ══════════════════════════════════════════════════════ -->
+        <div id="employeeInfoStep" class="flex-grow flex flex-col items-center justify-center space-y-10 px-6 py-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <div class="text-center space-y-3">
+                <div class="relative inline-block mb-4">
+                    <div class="absolute inset-0 rounded-[2rem] bg-slate-400/20 blur-xl animate-pulse"></div>
+                    <div class="relative bg-white dark:bg-slate-800 w-24 h-24 rounded-[2.5rem] flex items-center justify-center shadow-xl border border-slate-100 dark:border-slate-900/40">
+                        <i data-lucide="user-check" class="w-10 h-10 text-slate-600 dark:text-slate-300"></i>
+                    </div>
+                </div>
+                <h1 class="text-4xl font-black tracking-tight text-slate-900 dark:text-white leading-tight">Staff <span class="text-slate-500">Check-in</span></h1>
+                <p class="text-slate-500 dark:text-slate-400 font-medium text-lg">Please enter your employee details.</p>
+            </div>
+
+            <div class="w-full max-w-xl bg-white dark:bg-slate-800 p-10 rounded-[3rem] border border-slate-200 dark:border-slate-700 shadow-2xl space-y-6">
+                <div class="space-y-6">
+                    <div class="space-y-2">
+                        <label class="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 ml-1">Full Name</label>
+                        <input type="text" id="employeeName" placeholder="e.g. Maria Clara"
+                            class="w-full px-6 py-5 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-2xl focus:ring-4 focus:ring-slate-500/10 focus:border-slate-500 outline-none transition-all font-bold text-xl">
+                    </div>
+                    <div class="space-y-2">
+                        <label class="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 ml-1">Employee ID / Position</label>
+                        <input type="text" id="employeeId" placeholder="e.g. EMP-2024-001"
+                            class="w-full px-6 py-5 bg-slate-50 dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-2xl focus:ring-4 focus:ring-slate-500/10 focus:border-slate-500 outline-none transition-all font-bold">
+                    </div>
+                </div>
+
+                <button id="toPurposeBtn"
+                    class="w-full bg-slate-900 hover:bg-slate-800 dark:bg-white dark:hover:bg-slate-100 text-white dark:text-slate-900 font-black py-6 rounded-2xl shadow-xl transition-all flex items-center justify-center gap-3 active:scale-95 text-xl">
+                    Next Section
+                    <i data-lucide="arrow-right" class="w-6 h-6"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- ══════════════════════════════════════════════════════ -->
+        <!-- SCREEN 2 — PURPOSE GRID                               -->
+        <!-- ══════════════════════════════════════════════════════ -->
+        <div id="purposeStep" class="hidden flex-grow flex flex-col items-center justify-center space-y-12 px-6 py-10 animate-in fade-in slide-in-from-bottom-4 duration-500 w-full">
+            <div class="text-center space-y-3">
+                <h2 class="text-4xl font-black tracking-tight text-slate-900 dark:text-white">What is your <span class="text-slate-500">Purpose</span>?</h2>
+                <p class="text-slate-500 dark:text-slate-400 font-medium text-lg">Select the reason for your visit/work today.</p>
+            </div>
+
+            <div id="purposeGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 w-full max-w-5xl">
+                <!-- Injected via JS -->
+            </div>
+
+            <button id="backToInfoBtn" class="px-8 py-3 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 font-bold text-sm tracking-widest uppercase flex items-center gap-2 transition-all">
+                <i data-lucide="arrow-left" class="w-4 h-4"></i>
+                Back to Information
+            </button>
+        </div>
+
+        <!-- ══════════════════════════════════════════════════════ -->
+        <!-- SCREEN 4 — DONE                                     -->
+        <!-- ══════════════════════════════════════════════════════ -->
+        <div id="completionStep" class="hidden flex-grow flex flex-col items-center justify-center space-y-10 px-6 py-16 animate-in fade-in zoom-in-95 duration-500 text-center">
+            <div class="relative">
+                <div class="absolute inset-0 bg-slate-100 dark:bg-slate-900/40 rounded-full blur-3xl animate-pulse"></div>
+                <div class="relative bg-white dark:bg-slate-800 w-40 h-40 rounded-[3rem] flex items-center justify-center shadow-2xl border-4 border-slate-400">
+                    <i data-lucide="check" class="w-20 h-20 text-slate-600 dark:text-slate-300"></i>
+                </div>
+            </div>
+
+            <div class="space-y-4">
+                <h2 class="text-5xl font-black tracking-tight text-slate-900 dark:text-white">Check-in <span class="text-slate-500">Recorded!</span></h2>
+                <p class="text-slate-500 dark:text-slate-400 font-medium text-xl max-w-sm mx-auto">Have a productive day ahead!</p>
+            </div>
+
+            <div class="pt-8 w-full max-w-xs space-y-4">
+                <button onclick="window.location.href='index.html'"
+                    class="w-full bg-slate-900 hover:bg-slate-800 dark:bg-white dark:hover:bg-slate-100 text-white dark:text-slate-900 font-black py-5 rounded-2xl shadow-xl transition-all hover:-translate-y-1 active:scale-95 text-lg">
+                    Done & Exit
+                </button>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- ── IDLE OVERLAY ── -->
+    <div id="idleOverlay">
+        <div class="bg-white dark:bg-slate-800 p-12 rounded-[3.5rem] shadow-2xl text-center max-w-md mx-6 space-y-8 animate-in zoom-in-95">
+            <div class="w-20 h-20 bg-amber-100 dark:bg-amber-900/30 rounded-3xl flex items-center justify-center mx-auto text-amber-600">
+                <i data-lucide="clock" class="w-10 h-10 animate-spin-slow"></i>
+            </div>
+            <div class="space-y-2">
+                <h3 class="text-3xl font-black text-slate-900 dark:text-white">Still with us?</h3>
+                <p class="text-slate-500 dark:text-slate-400 font-medium">Auto-resetting in 30 seconds...</p>
+            </div>
+            <div class="relative h-2 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
+                <div id="idleBar" class="idle-progress absolute inset-0 bg-slate-500"></div>
+            </div>
+            <button id="resumeSessionBtn" class="w-full bg-slate-900 hover:bg-slate-800 dark:bg-white dark:hover:bg-slate-100 text-white dark:text-slate-900 font-black py-5 rounded-2xl shadow-xl active:scale-95 transition-all text-xl">
+                Continue Working
+            </button>
+        </div>
+    </div>
+
+    <!-- Toast -->
+    <div id="toastContainer" class="fixed bottom-10 right-10 z-[300] flex flex-col gap-3 pointer-events-none items-end"></div>
+    <template id="toastTemplate">
+        <div class="flex items-center gap-4 bg-slate-900/95 backdrop-blur-md text-white px-6 py-4 rounded-2xl shadow-2xl border border-white/10 animate-in fade-in slide-in-from-right-8 duration-300 min-w-[320px]">
+            <div class="p-2 rounded-xl bg-slate-500/20 text-slate-400">
+                <i data-lucide="info" class="w-5 h-5 toast-icon"></i>
+            </div>
+            <p class="toast-message font-bold text-sm tracking-tight flex-grow"></p>
+        </div>
+    </template>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js": "/vendor/firebase/firebase-app.js",
+                "https://www.gstatic.com/firebasejs/12.10.0/firebase-auth.js": "/vendor/firebase/firebase-auth.js"
+            }
+        }
+    </script>
+    <script type="module" src="js/firebase.js"></script>
+    <script type="module" src="js/employee.js"></script>
+</body>
+
+</html>
