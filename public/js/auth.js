@@ -283,9 +283,18 @@ class AuthManager {
             return;
         }
 
+        const flags = this._deriveRoleFlags(user);
+        const canAccessFacultyHub = flags.isAdmin || flags.isFaculty;
+
+        // Faculty-only dashboard: faculty users go straight to their (locked) Faculty Hub.
+        if (currentPage === 'index.html' && flags.isFaculty && !flags.isAdmin) {
+            window.location.href = 'faculty.html';
+            return;
+        }
+
         // Admin-only page restriction
-        const adminPages = ['dashboard.html', 'settings.html', 'history.html', 'students.html', 'faculty.html'];
-        if (adminPages.includes(currentPage) && !user.isAdmin) {
+        const adminPages = ['dashboard.html', 'settings.html', 'history.html', 'students.html'];
+        if (adminPages.includes(currentPage) && !flags.isAdmin) {
             console.warn('⛔ Access denied: Admin only page');
             this.showToast('Access denied. Administrator privileges required.', 'error');
             setTimeout(() => {
@@ -294,13 +303,25 @@ class AuthManager {
             return;
         }
 
-        this.updateAuthenticatedUI(user);
+        // Faculty hub restriction (faculty OR admin)
+        const facultyPages = ['faculty.html'];
+        if (facultyPages.includes(currentPage) && !canAccessFacultyHub) {
+            console.warn('⛔ Access denied: Faculty hub only page');
+            this.showToast('Access denied. Faculty account required.', 'error');
+            setTimeout(() => {
+                window.location.href = 'index.html';
+            }, 1000);
+            return;
+        }
+
+        // Use normalized flags in UI to avoid stale role flags.
+        this.updateAuthenticatedUI({ ...user, ...flags });
     }
 
     handleUnauthenticatedUser() {
         const currentPage = window.location.pathname.split('/').pop() || 'index.html';
-        const adminPages = ['dashboard.html', 'settings.html', 'history.html', 'students.html', 'faculty.html'];
-        if (adminPages.includes(currentPage)) {
+        const protectedPages = ['dashboard.html', 'settings.html', 'history.html', 'students.html', 'faculty.html'];
+        if (protectedPages.includes(currentPage)) {
             window.location.href = 'login.html';
         }
         this.updateUnauthenticatedUI();
@@ -316,12 +337,20 @@ class AuthManager {
         document.querySelectorAll('.admin-only').forEach(el => {
             el.classList.add('hidden');
         });
+        document.querySelectorAll('.staff-only').forEach(el => {
+            el.classList.add('hidden');
+        });
         document.querySelectorAll('.user-only').forEach(el => {
             el.classList.remove('hidden');
         });
     }
 
     updateAuthenticatedUI(user) {
+        const flags = this._deriveRoleFlags(user);
+        const isFaculty = flags.isFaculty;
+        const isStaff = flags.isStaff;
+        const isAdmin = flags.isAdmin;
+
         document.querySelectorAll('.user-email').forEach(el => {
             el.textContent = user.email;
         });
@@ -332,8 +361,13 @@ class AuthManager {
             el.classList.add('hidden');
         });
         
-        // Hide admin-only elements for non-admin users, and user-only elements for admin users
-        if (!user.isAdmin) {
+        // Staff-only elements (faculty hub entry) for faculty/admin
+        document.querySelectorAll('.staff-only').forEach(el => {
+            el.classList.toggle('hidden', !isStaff);
+        });
+
+        // Hide admin-only elements for non-admin users
+        if (!isAdmin) {
             document.querySelectorAll('.admin-only').forEach(el => {
                 el.classList.add('hidden');
             });
@@ -341,10 +375,22 @@ class AuthManager {
             document.querySelectorAll('.admin-only').forEach(el => {
                 el.classList.remove('hidden');
             });
+        }
+
+        // Hide kiosk/user-only elements for logged-in staff (admin OR faculty)
+        if (isStaff) {
             document.querySelectorAll('.user-only').forEach(el => {
                 el.classList.add('hidden');
             });
         }
+    }
+
+    _deriveRoleFlags(user) {
+        const role = String(user?.role || '').toLowerCase().trim();
+        const isFaculty = role === 'faculty' || (!!user?.isFaculty && role !== 'admin' && role !== 'superadmin');
+        const isAdmin = (role === 'admin' || role === 'superadmin') || (!!user?.isAdmin && !isFaculty);
+        const isStaff = isAdmin || isFaculty;
+        return { role, isAdmin, isFaculty, isStaff };
     }
 
     /** Returns the currently-authenticated user object (email) or null. */

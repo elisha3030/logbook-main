@@ -20,6 +20,7 @@ class ParentsKioskManager {
             'Enrollment': ['New Enrollment', 'Re-enrollment', 'Cross-enrollment', 'Transfer'],
             'Inquiries': ['Academic Programs', 'Tuition & Fees', 'Scholarship', 'General'],
             'Document Request': ['Enrollment Form', 'Transcript of Records', 'Grades', 'Other Documents'],
+            'Document Pick-up': ['Enrollment Form', 'Transcript of Records', 'Grades', 'Other Documents'],
             'Consultation': ['Academic Performance', 'Behavioral Concern', 'Career Guidance', 'General Consultation'],
         };
 
@@ -259,6 +260,7 @@ class ParentsKioskManager {
             { id: 'Enrollment', icon: 'clipboard-list', label: 'Enrollment' },
             { id: 'Inquiries', icon: 'messages-square', label: 'General Inquiries' },
             { id: 'Document Request', icon: 'file-text', label: 'Document Request' },
+            { id: 'Document Pick-up', icon: 'file-check', label: 'Document Pick-up' },
             { id: 'Consultation', icon: 'message-square', label: 'Consultation' },
             { id: 'Payment', icon: 'credit-card', label: 'Payment / Finance' },
             { id: 'Other', icon: 'more-horizontal', label: 'Other' }

@@ -286,6 +286,7 @@ async function initializeLocalDb() {
             { name: 'Enrollment', options: ['Adding/Dropping of Subjects', 'Shifting Program', 'Late Enrollment', 'Summer Validation', 'Overload Request', 'Others'] },
             { name: 'Inquiries', options: ['Grade Follow-up', 'Schedule of Classes', 'Professor Availability', 'Curriculum/Advising', 'Others'] },
             { name: 'Document Request', options: ['Enrollment Form', 'Clearance', 'Certificate of Registration (COR)', 'Transcript of Records (TOR)', 'Certification (Enrollment/Graduation)', 'Certification of Grades (GWA)', 'Course Description / Syllabus', 'Honorable Dismissal / Transfer', 'Others'] },
+            { name: 'Document Pick-up', options: ['Enrollment Form', 'Clearance', 'Certificate of Registration (COR)', 'Transcript of Records (TOR)', 'Certification (Enrollment/Graduation)', 'Certification of Grades (GWA)', 'Course Description / Syllabus', 'Honorable Dismissal / Transfer', 'Others'] },
             { name: 'Consultation', options: ['Thesis/Capstone', 'Project Guidance', 'Internship/Job Search', 'Others'] },
             { name: 'Others', options: [] }
         ]),
@@ -356,10 +357,10 @@ async function sendClaimNotification(studentEmail, studentName, activity) {
         lowerActivity.includes('claiming');
 
     if (isDocument) {
-        subject = '📦 Document Ready for Claiming';
-        headerText = 'Document Ready!';
-        bodyText = `Your requested document (<strong>${activity}</strong>) is now ready for claiming at the <strong>${process.env.OFFICE_NAME || 'Engineering Office'}</strong>.`;
-        instructions = 'Please bring your <strong>Student ID</strong> when you visit the office to claim it.';
+        subject = '📦 Document Ready for Pick Up';
+        headerText = 'Document Ready for Pick Up';
+        bodyText = `Your requested document (<strong>${activity}</strong>) is now ready to be picked up at the <strong>${process.env.OFFICE_NAME || 'Engineering Office'}</strong>.`;
+        instructions = 'Please bring your <strong>Student ID</strong> when you visit the office to pick it up.';
     }
 
     const mailOptions = {
@@ -473,8 +474,34 @@ app.get('/api/config', (req, res) => {
 app.get('/api/logs', async (req, res) => {
     try {
         const { officeId = 'engineering-office', studentNumber, limit = 500 } = req.query;
+
+        // Privacy: allow unauthenticated access ONLY for student-specific history lookups.
+        // This powers the kiosk-style Student Logs screen.
+        if (!req.session?.user && !studentNumber) {
+            return res.status(401).json({ error: 'Authentication required' });
+        }
+
         let query = 'SELECT * FROM logs WHERE officeId = ?';
         let params = [officeId];
+
+        // If logged in as faculty (non-admin), restrict to their own hub.
+        if (req.session?.user) {
+            const role = String(req.session.user.role || '').toLowerCase().trim();
+            const isAdmin = role === 'admin' || role === 'superadmin' || !!req.session.user.isAdmin;
+            const isFaculty = role === 'faculty' || !!req.session.user.isFaculty;
+            const enforcedName = String(req.session.user.displayName || '').trim();
+            if (isFaculty && !isAdmin) {
+                if (!enforcedName) {
+                    return res.status(403).json({ error: 'Faculty account missing display name.' });
+                }
+                query += ` AND (
+                    (studentNumber = 'EMPLOYEE_LOG' AND LOWER(TRIM(studentName)) = LOWER(TRIM(?)))
+                    OR
+                    (studentNumber != 'EMPLOYEE_LOG' AND LOWER(TRIM(staff)) = LOWER(TRIM(?)))
+                )`;
+                params.push(enforcedName, enforcedName);
+            }
+        }
 
         if (studentNumber) {
             // Unify history: Check both barcode and studentId
@@ -1409,6 +1436,15 @@ function hashPassword(password, salt) {
     return crypto.pbkdf2Sync(password, salt, 100_000, 64, 'sha512').toString('hex');
 }
 
+function isAdminRole(role) {
+    const r = String(role || '').toLowerCase();
+    return r === 'admin' || r === 'superadmin';
+}
+
+function isFacultyRole(role) {
+    return String(role || '').toLowerCase() === 'faculty';
+}
+
 // POST /api/auth/cache-session
 // Called by the client after a successful Firebase Auth SDK login to store
 // hashed credentials so offline logins work on subsequent visits.
@@ -1452,20 +1488,25 @@ app.post('/api/auth/login', async (req, res) => {
         if (adminUser) {
             const inputHash = hashPassword(password, adminUser.salt);
             if (inputHash === adminUser.hash) {
+                const normalizedRole = String(adminUser.role || 'admin').toLowerCase().trim();
+                const isAdmin = isAdminRole(normalizedRole);
+                const isFaculty = isFacultyRole(normalizedRole);
                 req.session.user = {
                     email: normalizedEmail,
                     displayName: adminUser.displayName,
-                    role: adminUser.role,
-                    isAdmin: true,
+                    role: normalizedRole,
+                    isAdmin,
+                    isFaculty,
                     offlineMode: !cloudReachable
                 };
-                console.log(`🔓 Admin auth success for ${normalizedEmail} (role=${adminUser.role})`);
+                console.log(`🔓 Local account auth success for ${normalizedEmail} (role=${normalizedRole})`);
                 return res.json({
                     success: true,
                     email: normalizedEmail,
                     displayName: adminUser.displayName,
-                    role: adminUser.role,
-                    isAdmin: true,
+                    role: normalizedRole,
+                    isAdmin,
+                    isFaculty,
                     offlineMode: !cloudReachable
                 });
             }
@@ -1538,7 +1579,23 @@ app.post('/api/auth/firebase-login', async (req, res) => {
 // GET /api/auth/session — check if the caller has an active server session
 app.get('/api/auth/session', (req, res) => {
     if (req.session && req.session.user) {
-        return res.json({ authenticated: true, user: req.session.user });
+        // Normalize role flags on read to avoid stale/mis-set values.
+        const u = req.session.user;
+        const normalizedRole = String(u.role || '').toLowerCase().trim();
+        const isFaculty = normalizedRole === 'faculty';
+        const isAdmin = normalizedRole === 'admin' || normalizedRole === 'superadmin';
+
+        if (normalizedRole) {
+            u.role = normalizedRole;
+            u.isFaculty = isFaculty;
+            u.isAdmin = isAdmin;
+        } else {
+            // If there's no role (e.g., cached Firebase staff), don't grant staff/admin privileges.
+            u.isFaculty = false;
+            u.isAdmin = false;
+        }
+
+        return res.json({ authenticated: true, user: u });
     }
     res.json({ authenticated: false });
 });
@@ -1579,16 +1636,21 @@ app.post('/api/auth/admins', requireAdmin, async (req, res) => {
         if (!email || !password) return res.status(400).json({ error: 'email and password are required' });
         if (password.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' });
 
+        const normalizedRole = String(role || 'admin').toLowerCase().trim();
+        if (normalizedRole === 'faculty' && !String(displayName || '').trim()) {
+            return res.status(400).json({ error: 'Faculty accounts require a display name.' });
+        }
+
         const salt = crypto.randomBytes(32).toString('hex');
         const hash = hashPassword(password, salt);
         const normalizedEmail = email.toLowerCase().trim();
 
         await localDb.run(
             'INSERT INTO admin_users (email, hash, salt, displayName, role) VALUES (?, ?, ?, ?, ?)',
-            [normalizedEmail, hash, salt, displayName || 'Administrator', role || 'admin']
+            [normalizedEmail, hash, salt, displayName || 'Administrator', normalizedRole]
         );
 
-        await writeAudit(req.session.user.email, 'admin_created', { email: normalizedEmail, role: role || 'admin' });
+        await writeAudit(req.session.user.email, 'admin_created', { email: normalizedEmail, role: normalizedRole });
         console.log(`✅ Admin account created: ${normalizedEmail} by ${req.session.user.email}`);
         res.json({ success: true, email: normalizedEmail });
     } catch (error) {
@@ -1627,9 +1689,13 @@ app.put('/api/auth/admins/:email', requireAdmin, async (req, res) => {
         }
 
         if (role) {
+            const normalizedRole = String(role).toLowerCase().trim();
+            if (normalizedRole === 'faculty' && !String(displayName || '').trim()) {
+                return res.status(400).json({ error: 'Faculty accounts require a display name.' });
+            }
             await localDb.run(
                 'UPDATE admin_users SET role = ?, updatedAt = CURRENT_TIMESTAMP WHERE email = ?',
-                [role, targetEmail]
+                [normalizedRole, targetEmail]
             );
         }
 

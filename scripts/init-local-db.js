@@ -143,7 +143,7 @@ async function run() {
         officeName:            'Engineering Office',
         officeId:              'engineering-office',
         schoolName:            'Your School Name',
-        activities:            JSON.stringify(['Enrollment', 'Inquiries', 'Document Request', 'Consultation', 'Others']),
+        activities:            JSON.stringify(['Enrollment', 'Inquiries', 'Document Request', 'Document Pick-up', 'Consultation', 'Others']),
         yearLevelEnabled:      'true',
         yearLevelRequired:     'true',
         courseRequired:        'true',

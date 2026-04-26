@@ -707,6 +707,7 @@ class LogsManager {
         const categoryConfig = {
             'Enrollment Concern': 'bg-indigo-600',
             'Document Request': 'bg-emerald-600',
+            'Document Pick-up': 'bg-teal-600',
             'Financial Concern': 'bg-rose-600',
             'Inquiry': 'bg-amber-600',
             'Consultation': 'bg-blue-600',
@@ -764,7 +765,11 @@ class LogsManager {
                 } else if (rawAct.includes('inquir') || rawAct.includes('ask')) {
                     activityCounts['Inquiry'] = (activityCounts['Inquiry'] || 0) + 1;
                 } else if (rawAct.includes('document') || rawAct.includes('form') || rawAct.includes('request')) {
-                    activityCounts['Document Request'] = (activityCounts['Document Request'] || 0) + 1;
+                    if (rawAct.includes('pick-up') || rawAct.includes('pickup') || rawAct.includes('claim')) {
+                        activityCounts['Document Pick-up'] = (activityCounts['Document Pick-up'] || 0) + 1;
+                    } else {
+                        activityCounts['Document Request'] = (activityCounts['Document Request'] || 0) + 1;
+                    }
                 } else {
                     activityCounts['Others'] += 1;
                 }

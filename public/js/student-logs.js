@@ -120,6 +120,14 @@ const DOCUMENT_TYPES = [
         description: 'Student Request'
     },
     {
+        name: 'Document Pick-up',
+        short: 'Pick-up',
+        icon: 'file-check',
+        color: 'emerald',
+        category: 'other',
+        description: 'Claiming Document'
+    },
+    {
         name: 'Consultation',
         short: 'Consult',
         icon: 'message-square-text',

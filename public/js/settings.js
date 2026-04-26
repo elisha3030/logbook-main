@@ -23,10 +23,146 @@ export default class SettingsManager {
         this.applyTheme(this.settings.appearanceMode || 'light');
         this.renderActivities();
         this.renderKioskTransactions();
+        this.renderLocalAccounts();
         this.renderStaffList();
         this.renderAuditLog();
         this.bindEvents();
         lucide.createIcons();
+    }
+
+    // ----------------------------------------------------------------
+    // Local staff accounts (SQLite admin_users)
+    // ----------------------------------------------------------------
+    async renderLocalAccounts() {
+        const container = document.getElementById('localAccountsList');
+        if (!container) return;
+
+        container.innerHTML = `<div class="text-[11px] text-slate-400 italic px-1">Loading accounts…</div>`;
+
+        try {
+            const res = await fetch('/api/auth/admins');
+            if (!res.ok) {
+                // If not authorized or offline, keep it quiet.
+                container.innerHTML = `<div class="text-[11px] text-slate-400 italic px-1">Accounts list unavailable.</div>`;
+                return;
+            }
+            const accounts = await res.json();
+            if (!Array.isArray(accounts) || accounts.length === 0) {
+                container.innerHTML = `<div class="text-[11px] text-slate-400 italic px-1">No local accounts found.</div>`;
+                return;
+            }
+
+            container.innerHTML = '';
+            accounts.forEach(a => {
+                const role = String(a.role || 'admin');
+                const isFaculty = role.toLowerCase() === 'faculty';
+                const isSelf = (String(this.staffEmail || '').toLowerCase().trim() === String(a.email || '').toLowerCase().trim());
+                const badgeClass = role === 'faculty'
+                    ? 'bg-purple-100 text-purple-700'
+                    : (role === 'superadmin' ? 'bg-indigo-100 text-indigo-700' : 'bg-emerald-100 text-emerald-700');
+
+                const row = document.createElement('div');
+                row.className = 'flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-700 border border-slate-100 dark:border-slate-600 rounded-xl';
+                row.innerHTML = `
+                    <div class="flex items-center gap-3 min-w-0">
+                        <div class="w-7 h-7 rounded-full bg-slate-200 dark:bg-slate-600 text-slate-700 dark:text-slate-100 flex items-center justify-center text-xs font-black flex-shrink-0">${this._escape((a.email || 'U')[0].toUpperCase())}</div>
+                        <div class="min-w-0">
+                            <div class="text-sm font-semibold text-slate-700 dark:text-slate-200 truncate">${this._escape(a.email)}</div>
+                            <div class="text-[10px] text-slate-400 truncate">${this._escape(a.displayName || '')}</div>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-2 flex-shrink-0">
+                        <span class="text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-lg ${badgeClass}">${this._escape(role)}</span>
+                        ${isFaculty && !isSelf ? `
+                            <button type="button" data-remove-email="${this._escape(a.email)}"
+                                class="inline-flex items-center justify-center w-9 h-9 rounded-xl bg-red-50 hover:bg-red-600 text-red-600 hover:text-white transition-all border border-red-100"
+                                title="Remove faculty account">
+                                <i data-lucide="trash-2" class="w-4 h-4"></i>
+                            </button>
+                        ` : ''}
+                    </div>
+                `;
+                container.appendChild(row);
+            });
+
+            // Bind remove handlers (faculty only)
+            container.querySelectorAll('[data-remove-email]').forEach(btn => {
+                btn.addEventListener('click', async () => {
+                    const email = btn.getAttribute('data-remove-email');
+                    if (!email) return;
+                    const ok = confirm(`Remove faculty account ${email}? This cannot be undone.`);
+                    if (!ok) return;
+                    await this.deleteLocalAccount(email);
+                });
+            });
+
+            lucide.createIcons();
+        } catch {
+            container.innerHTML = `<div class="text-[11px] text-slate-400 italic px-1">Accounts list unavailable.</div>`;
+        }
+    }
+
+    async deleteLocalAccount(email) {
+        try {
+            const res = await fetch(`/api/auth/admins/${encodeURIComponent(email)}`, { method: 'DELETE' });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(data.error || 'Failed to remove account');
+            this.showToast(`Removed ${email}`);
+            await this.renderLocalAccounts();
+            await this.renderAuditLog();
+        } catch (e) {
+            this.showToast(e.message || 'Failed to remove account', 'error');
+        }
+    }
+
+    async createLocalAccount() {
+        const emailEl = document.getElementById('newLocalAccountEmail');
+        const nameEl = document.getElementById('newLocalAccountDisplayName');
+        const pwEl = document.getElementById('newLocalAccountPassword');
+        const roleEl = document.getElementById('newLocalAccountRole');
+
+        const email = (emailEl?.value || '').trim().toLowerCase();
+        const displayName = (nameEl?.value || '').trim();
+        const password = (pwEl?.value || '');
+        const role = (roleEl?.value || 'faculty').trim();
+
+        if (!email || !email.includes('@')) { this.showToast('Enter a valid email address', 'error'); return; }
+        if (String(role).toLowerCase() === 'faculty' && !displayName) { this.showToast('Faculty accounts require a display name (must match the staff name in logs).', 'error'); return; }
+        if (!password || password.length < 8) { this.showToast('Password must be at least 8 characters', 'error'); return; }
+
+        const btn = document.getElementById('createLocalAccountBtn');
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = `<i data-lucide="loader" class="w-4 h-4 animate-spin"></i> Creating…`;
+            lucide.createIcons();
+        }
+
+        try {
+            const res = await fetch('/api/auth/admins', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, password, displayName, role })
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(data.error || 'Failed to create account');
+
+            if (emailEl) emailEl.value = '';
+            if (nameEl) nameEl.value = '';
+            if (pwEl) pwEl.value = '';
+            if (roleEl) roleEl.value = 'faculty';
+
+            this.showToast(`Created ${email} (${role})`);
+            this.renderLocalAccounts();
+            this.renderAuditLog();
+        } catch (e) {
+            this.showToast(e.message || 'Failed to create account', 'error');
+        } finally {
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = `<i data-lucide="user-plus" class="w-4 h-4"></i> Create Account`;
+                lucide.createIcons();
+            }
+        }
     }
 
     // ----------------------------------------------------------------
@@ -99,6 +235,7 @@ export default class SettingsManager {
                 { name: 'Enrollment', options: ['Adding/Dropping of Subjects', 'Shifting Program', 'Late Enrollment', 'Summer Validation', 'Overload Request', 'Others'] },
                 { name: 'Inquiries', options: ['Grade Follow-up', 'Schedule of Classes', 'Professor Availability', 'Curriculum/Advising', 'Others'] },
                 { name: 'Document Request', options: ['Enrollment Form', 'Clearance', 'Certificate of Registration (COR)', 'Transcript of Records (TOR)', 'Certification (Enrollment/Graduation)', 'Certification of Grades (GWA)', 'Course Description / Syllabus', 'Honorable Dismissal / Transfer', 'Others'] },
+                { name: 'Document Pick-up', options: ['Enrollment Form', 'Clearance', 'Certificate of Registration (COR)', 'Transcript of Records (TOR)', 'Certification (Enrollment/Graduation)', 'Certification of Grades (GWA)', 'Course Description / Syllabus', 'Honorable Dismissal / Transfer', 'Others'] },
                 { name: 'Consultation', options: ['Thesis/Capstone', 'Project Guidance', 'Internship/Job Search', 'Others'] },
                 { name: 'Others', options: [] }
             ];
@@ -127,6 +264,7 @@ export default class SettingsManager {
             'Enrollment': ['Adding/Dropping of Subjects', 'Shifting Program', 'Late Enrollment', 'Summer Validation', 'Overload Request', 'Others'],
             'Inquiries': ['Grade Follow-up', 'Schedule of Classes', 'Professor Availability', 'Curriculum/Advising', 'Others'],
             'Document Request': ['Enrollment Form', 'Clearance', 'Certificate of Registration (COR)', 'Transcript of Records (TOR)', 'Certification (Enrollment/Graduation)', 'Certification of Grades (GWA)', 'Course Description / Syllabus', 'Honorable Dismissal / Transfer', 'Others'],
+            'Document Pick-up': ['Enrollment Form', 'Clearance', 'Certificate of Registration (COR)', 'Transcript of Records (TOR)', 'Certification (Enrollment/Graduation)', 'Certification of Grades (GWA)', 'Course Description / Syllabus', 'Honorable Dismissal / Transfer', 'Others'],
             'Consultation': ['Thesis/Capstone', 'Project Guidance', 'Internship/Job Search', 'Others']
         };
         return defaults[name] || [];
@@ -699,6 +837,12 @@ export default class SettingsManager {
         document.getElementById('addStaffBtn')?.addEventListener('click', () => this.addStaff());
         document.getElementById('newStaffInput')?.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') { e.preventDefault(); this.addStaff(); }
+        });
+
+        document.getElementById('createLocalAccountBtn')?.addEventListener('click', () => this.createLocalAccount());
+        document.getElementById('refreshLocalAccountsBtn')?.addEventListener('click', () => this.renderLocalAccounts());
+        document.getElementById('newLocalAccountPassword')?.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') { e.preventDefault(); this.createLocalAccount(); }
         });
 
         document.getElementById('manualSyncBtn')?.addEventListener('click', () => this.triggerSync());
