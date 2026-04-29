@@ -34,6 +34,7 @@ import { loadSystemSettings } from './settings.js';
 let autoRefreshTimer = null;
 let activeClockInLogId = null;
 let currentQueue = []; // Global storage for current view
+let selectedLogIds = []; // Track selected logs for bulk actions
 
 // ----------------------------------------------------------------
 // Toast
@@ -485,10 +486,18 @@ async function renderQueue() {
     // Sort: pending first, then completed
     const sorted = [...pending, ...completed];
 
+    // Reset selection if logs are no longer in queue
+    const currentIds = new Set(pending.map(l => l.id));
+    selectedLogIds = selectedLogIds.filter(id => currentIds.has(id));
+    updateBulkToolbar();
+
     tbody.innerHTML = sorted.map(log => {
         const isPending = !log.timeOut && log.status !== 'completed' && log.status !== 'in-service';
         const isInService = !log.timeOut && log.status === 'in-service';
         const isCompleted = log.status === 'completed';
+
+        const isSelectable = isPending || isInService;
+        const isChecked = selectedLogIds.includes(log.id);
 
         let statusBadge = '';
         if (isPending) {
@@ -578,13 +587,21 @@ async function renderQueue() {
             <tr onclick="window.viewTransactionDetails('${escape(log.id)}')" 
                 class="hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-all cursor-pointer group ${isCompleted ? 'opacity-60' : ''}">
                 <td class="px-8 py-4">
-                    <div class="flex items-center gap-3">
-                        <div class="w-9 h-9 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 flex items-center justify-center text-xs font-black flex-shrink-0 group-hover:scale-110 transition-all">
-                            ${escape((log.studentName || 'S')[0]).toUpperCase()}
+                    <div class="flex items-center gap-4">
+                        <div onclick="event.stopPropagation()">
+                            <input type="checkbox" 
+                                   ${isChecked ? 'checked' : ''} 
+                                   ${!isSelectable ? 'disabled class="opacity-0"' : 'onchange="window.toggleLogSelection(\'' + escape(log.id) + '\')"'} 
+                                   class="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer">
                         </div>
-                        <div>
-                            <p class="font-bold text-slate-800 dark:text-white text-sm leading-none group-hover:text-blue-600 transition-colors">${escape(log.studentName || '—')}</p>
-                            <p class="text-[10px] text-slate-400 font-mono mt-0.5">${escape(log.studentId || log.studentNumber || '')}</p>
+                        <div class="flex items-center gap-3">
+                            <div class="w-9 h-9 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 flex items-center justify-center text-xs font-black flex-shrink-0 group-hover:scale-110 transition-all">
+                                ${escape((log.studentName || 'S')[0]).toUpperCase()}
+                            </div>
+                            <div>
+                                <p class="font-bold text-slate-800 dark:text-white text-sm leading-none group-hover:text-blue-600 transition-colors">${escape(log.studentName || '—')}</p>
+                                <p class="text-[10px] text-slate-400 font-mono mt-0.5">${escape(log.studentId || log.studentNumber || '')}</p>
+                            </div>
                         </div>
                     </div>
                 </td>
@@ -801,10 +818,102 @@ window.markComplete = async function (logId) {
         showToast('Session marked as completed!');
         await renderQueue();
     } catch (e) {
-        showToast('Failed to update log', 'error');
-        if (btn) { btn.disabled = false; btn.innerHTML = `<i data-lucide="check-circle" class="w-3.5 h-3.5"></i> Mark Done`; lucide.createIcons(); }
+        showToast('Update failed', 'error');
     }
 };
+
+// ── Bulk Actions ──
+function updateBulkToolbar() {
+    const toolbar = document.getElementById('bulkActionsToolbar');
+    const countEl = document.getElementById('selectedCount');
+    const selectAllCheckbox = document.getElementById('selectAllQueue');
+
+    if (!toolbar || !countEl) return;
+
+    if (selectedLogIds.length > 0) {
+        toolbar.classList.remove('hidden');
+        countEl.textContent = selectedLogIds.length;
+    } else {
+        toolbar.classList.add('hidden');
+    }
+
+    if (selectAllCheckbox) {
+        const selectableLogs = currentQueue.filter(l => l.status !== 'completed');
+        selectAllCheckbox.checked = selectableLogs.length > 0 && 
+                                  selectedLogIds.length === selectableLogs.length;
+    }
+}
+
+window.toggleLogSelection = function(id) {
+    const idx = selectedLogIds.indexOf(id);
+    if (idx === -1) {
+        selectedLogIds.push(id);
+    } else {
+        selectedLogIds.splice(idx, 1);
+    }
+    updateBulkToolbar();
+};
+
+window.toggleAllQueue = function(checked) {
+    if (checked) {
+        const selectableLogs = currentQueue.filter(l => l.status !== 'completed');
+        selectedLogIds = selectableLogs.map(l => l.id);
+    } else {
+        selectedLogIds = [];
+    }
+    renderQueue();
+    updateBulkToolbar();
+};
+
+window.bulkComplete = async function() {
+    if (selectedLogIds.length === 0) return;
+
+    const confirmed = await showConfirmModal('Bulk Complete', `Are you sure you want to mark ${selectedLogIds.length} student(s) as completed?`);
+    if (!confirmed) return;
+
+    const btn = document.getElementById('bulkCompleteBtn');
+    const originalHtml = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = `<i data-lucide="loader" class="w-4 h-4 animate-spin"></i> Processing…`;
+    lucide.createIcons();
+
+    try {
+        const res = await fetch('/api/logs/bulk-complete', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                logIds: selectedLogIds,
+                staffName: staffName
+            })
+        });
+
+        if (!res.ok) throw new Error('Bulk complete failed');
+
+        showToast(`Successfully completed ${selectedLogIds.length} student(s)!`);
+        selectedLogIds = [];
+        await renderQueue();
+        await renderSummary();
+    } catch (error) {
+        console.error('❌ Bulk complete error:', error);
+        showToast('Failed to complete students', 'error');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = originalHtml;
+        lucide.createIcons();
+    }
+};
+
+document.addEventListener('DOMContentLoaded', () => {
+    const selectAllCheckbox = document.getElementById('selectAllQueue');
+    if (selectAllCheckbox) {
+        selectAllCheckbox.addEventListener('change', (e) => window.toggleAllQueue(e.target.checked));
+    }
+    
+    const bulkBtn = document.getElementById('bulkCompleteBtn');
+    if (bulkBtn) {
+        bulkBtn.addEventListener('click', () => window.bulkComplete());
+    }
+});
 
 // ----------------------------------------------------------------
 // Update Document Status (In/Out/Pending)

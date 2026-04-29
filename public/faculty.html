@@ -327,6 +327,26 @@
                 </div>
             </div>
 
+            <!-- Bulk Actions Toolbar -->
+            <div id="bulkActionsToolbar" class="hidden animate-in fade-in slide-in-from-top-4 duration-300 mb-6">
+                <div class="bg-blue-600 rounded-3xl p-4 flex items-center justify-between shadow-xl shadow-blue-900/20">
+                    <div class="flex items-center gap-4 text-white ml-2">
+                        <div class="bg-white/20 p-2 rounded-xl">
+                            <i data-lucide="check-square" class="w-5 h-5"></i>
+                        </div>
+                        <div>
+                            <p class="text-sm font-black leading-none"><span id="selectedCount">0</span> Selected</p>
+                            <p class="text-[10px] opacity-80 font-bold uppercase tracking-widest mt-1">Queue Operations</p>
+                        </div>
+                    </div>
+                    <button id="bulkCompleteBtn"
+                            class="bg-white text-blue-600 hover:bg-blue-50 font-black px-6 py-2.5 rounded-2xl transition-all flex items-center gap-2 text-sm shadow-sm active:scale-95 mr-2">
+                        <i data-lucide="check-circle-2" class="w-4 h-4"></i>
+                        Mark as Done
+                    </button>
+                </div>
+            </div>
+
             <!-- Queue Table -->
             <div id="queueCard"
                 class="hidden bg-white dark:bg-slate-800 rounded-3xl shadow-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
@@ -340,12 +360,14 @@
                         <thead
                             class="bg-slate-50 dark:bg-slate-700 text-[10px] font-black uppercase tracking-[0.15em] text-slate-400 border-b border-slate-100 dark:border-slate-600">
                             <tr>
-                                <th class="px-8 py-4">Student</th>
+                                <th class="px-8 py-4 w-12">
+                                    <input type="checkbox" id="selectAllQueue" 
+                                           class="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer">
+                                </th>
+                                <th class="px-4 py-4">Student</th>
                                 <th class="px-6 py-4">Activity</th>
                                 <th class="px-6 py-4">Checked In</th>
-                                <th class="px-6 py-4">Duration</th>
-                                <th class="px-6 py-4 text-center">Status</th>
-                                <th class="px-8 py-4 text-right">Action</th>
+                                <th class="px-6 py-4 text-right">Action</th>
                             </tr>
                         </thead>
                         <tbody id="queueTableBody" class="divide-y divide-slate-50 dark:divide-slate-700">

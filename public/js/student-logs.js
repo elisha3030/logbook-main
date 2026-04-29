@@ -539,6 +539,8 @@ class StudentKioskManager {
 
             if (response.status === 404) {
                 this.showToast('Student not registered. Please see staff.', 'error');
+            } else if (response.status === 403) {
+                this.showToast('Account pending approval. Please see office staff.', 'warning');
             } else if (response.status === 409) {
                 const data = await response.json().catch(() => ({}));
                 this.showToast(data?.error || 'Student ID conflict. Please see staff.', 'error');
@@ -561,6 +563,8 @@ class StudentKioskManager {
             if (!response.ok) {
                 if (response.status === 404) {
                     this.showToast('Student not registered. Please see staff.', 'error');
+                } else if (response.status === 403) {
+                    this.showToast('Account pending approval. Please see office staff.', 'warning');
                 } else {
                     throw new Error('Lookup failed');
                 }

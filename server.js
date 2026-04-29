@@ -141,6 +141,7 @@ async function initializeLocalDb() {
             course TEXT,
             yearLevel TEXT,
             email TEXT,
+            isApproved INTEGER DEFAULT 1,
             synced INTEGER DEFAULT 0,
             updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP
         )
@@ -194,6 +195,11 @@ async function initializeLocalDb() {
     try {
         await localDb.exec('ALTER TABLE students ADD COLUMN synced INTEGER DEFAULT 1');
     } catch (e) { /* column already exists or table doesn't exist yet */ }
+
+    // Add isApproved column to students if it doesn't exist
+    try {
+        await localDb.exec('ALTER TABLE students ADD COLUMN isApproved INTEGER DEFAULT 1');
+    } catch (e) { /* column already exists */ }
 
     // Settings table (key-value store for all system settings)
     await localDb.exec(`
@@ -531,6 +537,40 @@ app.get('/api/logs', async (req, res) => {
     }
 });
 
+// Bulk complete logs
+app.patch('/api/logs/bulk-complete', async (req, res) => {
+    try {
+        const { logIds, staffName } = req.body;
+        if (!logIds || !Array.isArray(logIds)) {
+            return res.status(400).json({ error: 'logIds array required' });
+        }
+
+        if (logIds.length === 0) {
+            return res.json({ success: true, count: 0 });
+        }
+
+        const timeOut = new Date().toISOString();
+        const placeholders = logIds.map(() => '?').join(',');
+
+        // 1. Update local DB
+        await localDb.run(
+            `UPDATE logs SET timeOut = ?, status = 'completed', synced = 0 WHERE id IN (${placeholders})`,
+            [timeOut, ...logIds]
+        );
+
+        // 2. Write audit
+        await writeAudit(staffName, 'bulk_complete_logs', { count: logIds.length, logIds });
+
+        res.json({ success: true, count: logIds.length });
+        
+        // 3. Trigger cloud sync (async)
+        syncLogsToCloud();
+    } catch (error) {
+        console.error('Error in bulk complete logs:', error);
+        res.status(500).json({ error: 'Failed to complete logs' });
+    }
+});
+
 // GET all students (Local-First)
 app.get('/api/students', async (req, res) => {
     try {
@@ -674,8 +714,9 @@ app.post('/api/students/register', async (req, res) => {
         }
 
         // 1. Save to SQLite immediately (Local-First)
+        // New registrations default to NOT approved (0)
         await localDb.run(
-            'INSERT OR REPLACE INTO students (barcode, name, studentId, course, yearLevel, email, synced) VALUES (?, ?, ?, ?, ?, ?, 0)',
+            'INSERT OR REPLACE INTO students (barcode, name, studentId, course, yearLevel, email, synced, isApproved) VALUES (?, ?, ?, ?, ?, ?, 0, 0)',
             [barcode, name, studentId, Course, yearLevel, email]
         );
 
@@ -750,6 +791,34 @@ app.post('/api/students/purge', requireAdmin, async (req, res) => {
     }
 });
 
+// Bulk approve students
+app.post('/api/students/bulk-approve', requireAdmin, async (req, res) => {
+    try {
+        const { barcodes, staffEmail } = req.body;
+        if (!barcodes || !Array.isArray(barcodes)) {
+            return res.status(400).json({ error: 'barcodes array required' });
+        }
+
+        if (barcodes.length === 0) {
+            return res.json({ success: true, count: 0 });
+        }
+
+        const placeholders = barcodes.map(() => '?').join(',');
+        await localDb.run(
+            `UPDATE students SET isApproved = 1, synced = 0 WHERE barcode IN (${placeholders})`,
+            barcodes
+        );
+
+        await writeAudit(staffEmail, 'bulk_approve_students', { count: barcodes.length });
+        
+        res.json({ success: true, count: barcodes.length });
+        syncStudentsToCloud();
+    } catch (error) {
+        console.error('Error in bulk approve:', error);
+        res.status(500).json({ error: 'Failed to approve students' });
+    }
+});
+
 // Lookup student and check for active session (Hybrid: SQLite -> Firebase)
 app.get('/api/students/:barcode', async (req, res) => {
     try {
@@ -770,7 +839,21 @@ app.get('/api/students/:barcode', async (req, res) => {
             }
         }
 
+            return res.json({
+                ...studentData,
+                activeLogs: activeLogs || []
+            });
+        }
+
         if (localStudent) {
+            // Check approval status
+            if (localStudent.isApproved === 0) {
+                return res.status(403).json({ 
+                    error: 'Account pending approval. Please see office staff.',
+                    isPending: true 
+                });
+            }
+
             const canonicalBarcode = localStudent.barcode;
             const studentData = {
                 id: localStudent.barcode, // Always use the official barcode from the record
@@ -851,8 +934,9 @@ app.post('/api/register-log', async (req, res) => {
         const timeIn = new Date().toISOString();
 
         // 1. Write student to SQLite
+        // New registrations default to NOT approved (0)
         await localDb.run(
-            'INSERT OR REPLACE INTO students (barcode, name, studentId, course, yearLevel, email, synced) VALUES (?, ?, ?, ?, ?, ?, 0)',
+            'INSERT OR REPLACE INTO students (barcode, name, studentId, course, yearLevel, email, synced, isApproved) VALUES (?, ?, ?, ?, ?, ?, 0, 0)',
             [studentData.barcode, studentData.name, studentData.studentId, studentData.Course, studentData.yearLevel, studentData.email]
         );
 
@@ -1838,6 +1922,7 @@ async function syncStudentsToCloud() {
                     Course: student.course,
                     'Year Level': student.yearLevel,
                     email: student.email,
+                    isApproved: student.isApproved === 1,
                     updatedAt: admin.firestore.FieldValue.serverTimestamp()
                 }, { merge: true });
 
@@ -2038,8 +2123,8 @@ async function pullStudentsFromCloud() {
 
             const data = doc.data();
             await localDb.run(
-                'INSERT OR REPLACE INTO students (barcode, name, studentId, course, yearLevel, email, synced) VALUES (?, ?, ?, ?, ?, ?, 1)',
-                [doc.id, data.name, data.studentId, data.Course, data["Year Level"], data.email]
+                'INSERT OR REPLACE INTO students (barcode, name, studentId, course, yearLevel, email, isApproved, synced) VALUES (?, ?, ?, ?, ?, ?, ?, 1)',
+                [doc.id, data.name, data.studentId, data.Course, data["Year Level"], data.email, data.isApproved ? 1 : 0]
             );
         }
 

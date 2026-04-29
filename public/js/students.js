@@ -8,6 +8,7 @@ class StudentsManager {
     constructor() {
         this.students = [];
         this.filteredStudents = [];
+        this.selectedBarcodes = [];
         this.currentPage = 1;
         this.studentsPerPage = 10;
         this.isLoading = false;
@@ -74,11 +75,13 @@ class StudentsManager {
     setupEventListeners() {
         const searchInput = document.getElementById('studentSearch');
         const yearFilter = document.getElementById('yearLevelFilter');
+        const approvalFilter = document.getElementById('approvalFilter');
         const addBtn = document.getElementById('addStudentBtn');
         const form = document.getElementById('studentForm');
 
         if (searchInput) searchInput.addEventListener('input', () => this.filterStudents());
         if (yearFilter) yearFilter.addEventListener('change', () => this.filterStudents());
+        if (approvalFilter) approvalFilter.addEventListener('change', () => this.filterStudents());
         if (addBtn) addBtn.addEventListener('click', () => this.openModal());
         if (form) form.addEventListener('submit', (e) => this.handleFormSubmit(e));
     }
@@ -133,6 +136,8 @@ class StudentsManager {
             if (!response.ok) throw new Error(data.error || 'Failed to fetch students');
 
             this.students = data;
+            this.selectedBarcodes = []; // Reset selection on reload
+            this.updateBulkToolbar();
             this.filterStudents();
         } catch (error) {
             console.error('❌ Error loading students:', error);
@@ -155,6 +160,7 @@ class StudentsManager {
     filterStudents() {
         const searchTerm = document.getElementById('studentSearch')?.value.toLowerCase() || '';
         const yearValue = document.getElementById('yearLevelFilter')?.value || '';
+        const approvalValue = document.getElementById('approvalFilter')?.value || '';
 
         this.filteredStudents = this.students
             .filter(student => {
@@ -164,8 +170,11 @@ class StudentsManager {
                     student.barcode.toLowerCase().includes(searchTerm) ||
                     sid.includes(searchTerm);
                 const matchesYear = !yearValue || student.yearLevel === yearValue;
+                const matchesApproval = !approvalValue || 
+                    (approvalValue === 'approved' && student.isApproved) || 
+                    (approvalValue === 'pending' && !student.isApproved);
                 const matchesRoom = !this.selectedRoom || this.getRoom(student.course) === this.selectedRoom;
-                return matchesSearch && matchesYear && matchesRoom;
+                return matchesSearch && matchesYear && matchesApproval && matchesRoom;
             })
             .sort((a, b) => {
                 const ra = this.getRoom(a.course).toLowerCase();
@@ -249,6 +258,12 @@ class StudentsManager {
         tableBody.innerHTML = pageStudents.map(student => `
             <tr class="hover:bg-slate-50/80 dark:hover:bg-slate-700/50 transition-colors group">
                 <td class="px-8 py-5">
+                    <input type="checkbox" 
+                           ${this.selectedBarcodes.includes(student.barcode) ? 'checked' : ''}
+                           onchange="window.studentsManager.toggleSelection('${student.barcode}')"
+                           class="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer">
+                </td>
+                <td class="px-4 py-5">
                     <div class="flex items-center gap-3">
                         <div class="w-10 h-10 rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-white flex items-center justify-center font-bold border border-blue-100 dark:border-blue-900/20">
                             ${student.name.charAt(0)}
@@ -265,6 +280,12 @@ class StudentsManager {
                     <span class="px-3 py-1 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-xs font-black uppercase tracking-wider border border-slate-200 dark:border-slate-600">
                         ${student.yearLevel}
                     </span>
+                </td>
+                <td class="px-6 py-5 text-center">
+                    ${student.isApproved
+                ? '<span class="px-3 py-1 rounded-full bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 text-[10px] font-black uppercase border border-emerald-100 dark:border-emerald-900/30">Approved</span>'
+                : '<span class="px-3 py-1 rounded-full bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 text-[10px] font-black uppercase border border-amber-100 dark:border-amber-900/30">Pending</span>'
+            }
                 </td>
                 <td class="px-6 py-5 text-center">
                     ${student.synced === 2
@@ -411,6 +432,75 @@ class StudentsManager {
         } catch (error) {
             console.error('❌ Error deleting student:', error);
             this.showToast('Error deleting record', 'error');
+        }
+    }
+
+    toggleSelection(barcode) {
+        const idx = this.selectedBarcodes.indexOf(barcode);
+        if (idx === -1) {
+            this.selectedBarcodes.push(barcode);
+        } else {
+            this.selectedBarcodes.splice(idx, 1);
+        }
+        this.updateBulkToolbar();
+    }
+
+    toggleAll(checked) {
+        if (checked) {
+            // Only select filtered students currently in view? 
+            // Usually, "select all" in tables refers to all filtered records or just the page.
+            // Let's do all filtered students.
+            this.selectedBarcodes = this.filteredStudents.map(s => s.barcode);
+        } else {
+            this.selectedBarcodes = [];
+        }
+        this.displayStudentsTable();
+        this.updateBulkToolbar();
+    }
+
+    updateBulkToolbar() {
+        const toolbar = document.getElementById('bulkActionsToolbar');
+        const countEl = document.getElementById('selectedCount');
+        const selectAllCheckbox = document.getElementById('selectAllStudents');
+
+        if (!toolbar || !countEl) return;
+
+        if (this.selectedBarcodes.length > 0) {
+            toolbar.classList.remove('hidden');
+            countEl.textContent = this.selectedBarcodes.length;
+        } else {
+            toolbar.classList.add('hidden');
+        }
+
+        if (selectAllCheckbox) {
+            selectAllCheckbox.checked = this.selectedBarcodes.length > 0 && 
+                                      this.selectedBarcodes.length === this.filteredStudents.length;
+        }
+    }
+
+    async bulkApprove() {
+        if (this.selectedBarcodes.length === 0) return;
+
+        const staffEmail = window._currentUser?.email || '';
+        
+        try {
+            const response = await fetch('/api/students/bulk-approve', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    barcodes: this.selectedBarcodes,
+                    staffEmail: staffEmail
+                })
+            });
+
+            if (!response.ok) throw new Error('Bulk approval failed');
+
+            this.showToast(`Successfully approved ${this.selectedBarcodes.length} student(s)`);
+            this.selectedBarcodes = [];
+            this.loadStudents();
+        } catch (error) {
+            console.error('❌ Bulk approve error:', error);
+            this.showToast('Failed to approve students', 'error');
         }
     }
 }

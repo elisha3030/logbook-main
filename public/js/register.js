@@ -193,7 +193,10 @@ class RegistrationManager {
                         </div>
                         <h4 class="text-white font-black tracking-tight text-lg">Student Profile</h4>
                     </div>
-                    <span class="text-white/70 text-[10px] font-black uppercase tracking-widest bg-white/10 px-3 py-1 rounded-full border border-white/10">Registered</span>
+                    ${student.isApproved 
+                        ? '<span class="text-white/70 text-[10px] font-black uppercase tracking-widest bg-emerald-500/20 px-3 py-1 rounded-full border border-white/10">Approved</span>'
+                        : '<span class="text-white text-[10px] font-black uppercase tracking-widest bg-amber-500/40 px-3 py-1 rounded-full border border-white/20 animate-pulse">Pending Approval</span>'
+                    }
                 </div>
                 <div class="p-8 flex flex-col items-center text-center gap-8">
                     <div class="w-32 h-32 rounded-[2.5rem] bg-slate-50 dark:bg-slate-700 flex items-center justify-center text-slate-300 dark:text-slate-500 border-4 border-slate-100 dark:border-slate-600 shadow-inner">
