@@ -208,6 +208,7 @@ class StudentKioskManager {
         this.lastBarcodeKeyTime = 0;
         this.systemSettings   = {};
         this.officeId         = 'engineering-office';
+        this.selectedPickupDoc = null; // for pick-up selection
 
         // Idle timer
         this._idleTimer    = null;
@@ -435,6 +436,24 @@ class StudentKioskManager {
             if (e.key === 'Enter') document.getElementById('submitCustomDocBtn')?.click();
         });
 
+        // ── Document Request Title ──
+        document.getElementById('submitDocRequestBtn')?.addEventListener('click', () => {
+            const input = document.getElementById('docRequestTitleInput');
+            const val = input?.value.trim();
+            if (!val) { this.showToast('Please enter a document title.', 'warning'); return; }
+            this.selectedDocument = { 
+                name: `Document Request: ${val}`, 
+                short: 'Request', 
+                icon: 'folders', 
+                color: 'indigo', 
+                category: 'other' 
+            };
+            this.showFacultySelection();
+        });
+        document.getElementById('docRequestTitleInput')?.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') document.getElementById('submitDocRequestBtn')?.click();
+        });
+
         // ── Faculty selection ──
         document.getElementById('backToDocBtn')?.addEventListener('click', () => this.showDocumentSelection());
 
@@ -477,6 +496,25 @@ class StudentKioskManager {
         const proofModal  = document.getElementById('proofViewerModal');
         [closeProof, closeProof2].forEach(btn => btn?.addEventListener('click', () => proofModal?.classList.add('hidden')));
         proofModal?.addEventListener('click', (e) => { if (e.target === proofModal) proofModal.classList.add('hidden'); });
+
+        // ── Pick-up Confirmation Modal ────
+        document.getElementById('confirmPickupBtn')?.addEventListener('click', () => {
+            if (this.selectedPickupDoc) {
+                this.selectedDocument = { 
+                    name: `Document Pick-up: ${this.selectedPickupDoc}`, 
+                    short: 'Pick-up', 
+                    icon: 'file-check', 
+                    color: 'emerald', 
+                    category: 'other' 
+                };
+            }
+            document.getElementById('pickupConfirmationModal')?.classList.add('hidden');
+            this.showFacultySelection();
+        });
+        document.getElementById('cancelPickupBtn')?.addEventListener('click', () => {
+            document.getElementById('pickupConfirmationModal')?.classList.add('hidden');
+            this.selectedPickupDoc = null;
+        });
     }
 
     // ── Manual form handler ────────────────────────────────────
@@ -549,9 +587,9 @@ class StudentKioskManager {
         clearInterval(this._countdownTimer);
         document.getElementById('idleOverlay')?.classList.remove('active');
 
-        this.currentStudent  = null;
         this.selectedDocument = null;
         this.selectedFaculty  = null;
+        this.selectedPickupDoc = null;
         this.barcodeBuffer    = '';
         this.isIdVisible      = false;
         this.isHistoryVisible = false;
@@ -561,12 +599,16 @@ class StudentKioskManager {
         document.getElementById('manualEntryInitial')?.classList.remove('hidden');
         document.getElementById('manualEntryForm')?.classList.add('hidden');
         document.getElementById('otherDocSection')?.classList.add('hidden');
+        document.getElementById('docRequestSection')?.classList.add('hidden');
         
         // Hide modals
         document.getElementById('multiSessionSignOutModal')?.classList.add('hidden');
+        document.getElementById('pickupConfirmationModal')?.classList.add('hidden');
 
         const customDocInput = document.getElementById('customDocInput');
         if (customDocInput) customDocInput.value = '';
+        const docReqInput = document.getElementById('docRequestTitleInput');
+        if (docReqInput) docReqInput.value = '';
         ['manualName', 'manualId'].forEach(id => {
             const el = document.getElementById(id);
             if (el) el.value = '';
@@ -910,8 +952,25 @@ class StudentKioskManager {
             return;
         }
 
+        if (docName === 'Document Request') {
+            document.getElementById('documentGrid')?.classList.add('hidden');
+            const section = document.getElementById('docRequestSection');
+            if (section) {
+                section.classList.remove('hidden');
+                section.scrollIntoView({ behavior: 'smooth' });
+                document.getElementById('docRequestTitleInput')?.focus();
+            }
+            return;
+        }
+
         this.selectedDocument = DOCUMENT_TYPES.find(d => d.name === docName)
             || { name: docName, short: docName, icon: 'file', color: 'slate', category: 'custom' };
+
+        // ── Check if it's Document Pick-up ──
+        if (docName === 'Document Pick-up') {
+            this.showPickupSelection();
+            return;
+        }
 
         // Re-show grid if it was hidden by "others" path
         document.getElementById('documentGrid')?.classList.remove('hidden');
@@ -1180,6 +1239,82 @@ class StudentKioskManager {
         }
         modal.classList.remove('hidden');
         this.setupLucide();
+    }
+
+    // ── Document Pick-up Selection Logic ──────────────────────
+    async showPickupSelection() {
+        const modal = document.getElementById('pickupConfirmationModal');
+        const list  = document.getElementById('pickupList');
+        const confirmBtn = document.getElementById('confirmPickupBtn');
+        
+        if (!modal || !list) return;
+
+        // Reset state
+        this.selectedPickupDoc = null;
+        if (confirmBtn) confirmBtn.disabled = true;
+        list.innerHTML = `<div class="flex justify-center py-8"><div class="animate-spin rounded-full h-8 w-8 border-4 border-blue-500 border-t-transparent"></div></div>`;
+        modal.classList.remove('hidden');
+
+        try {
+            const res  = await fetch(`/api/logs?studentNumber=${this.currentStudent.id}&limit=10`);
+            const logs = await res.json();
+            
+            // Filter: only show requests that are "Pending" or "Done" (so they can be claimed)
+            const pickableLogs = logs.filter(l => {
+                const act = (l.activity || '').toLowerCase();
+                return !act.includes('pick-up') && !act.includes('claimed');
+            });
+
+            if (pickableLogs.length === 0) {
+                list.innerHTML = `
+                    <div class="text-center py-8">
+                        <div class="bg-slate-100 dark:bg-slate-700 w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3 text-slate-400">
+                            <i data-lucide="info" class="w-6 h-6"></i>
+                        </div>
+                        <p class="text-slate-500 dark:text-slate-400 font-bold text-sm">No recent document requests found to claim.</p>
+                        <button onclick="window.kioskManager.setPickupDocument('General Document')" class="mt-4 text-blue-500 text-xs font-black uppercase tracking-widest hover:underline">Claim General Document instead</button>
+                    </div>
+                `;
+            } else {
+                list.innerHTML = pickableLogs.map(log => {
+                    const date = new Date(log.timeIn).toLocaleDateString([], { month: 'short', day: 'numeric' });
+                    return `
+                        <div class="pickup-item flex items-center gap-4 p-4 bg-white dark:bg-slate-800 rounded-2xl border-2 border-slate-100 dark:border-slate-700 hover:border-blue-400 dark:hover:border-blue-600 transition-all cursor-pointer group"
+                            onclick="window.kioskManager.setPickupDocument('${this.escape(log.activity)}', this)">
+                            <div class="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-900/20 text-blue-500 group-hover:bg-blue-500 group-hover:text-white flex items-center justify-center transition-all flex-shrink-0">
+                                <i data-lucide="file-text" class="w-5 h-5"></i>
+                            </div>
+                            <div class="flex-grow">
+                                <p class="font-black text-slate-800 dark:text-white text-sm leading-tight">${log.activity}</p>
+                                <p class="text-[9px] font-bold text-slate-500 dark:text-slate-400 mt-0.5">${date} • ${log.staff || 'Staff'}</p>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            }
+        } catch (e) {
+            list.innerHTML = `<p class="text-red-500 text-center py-8 font-bold text-sm">Failed to load request history.</p>`;
+        }
+        
+        this.setupLucide();
+    }
+
+    setPickupDocument(docTitle, element) {
+        this.selectedPickupDoc = docTitle;
+        
+        // UI Feedback: highlight selected item
+        document.querySelectorAll('.pickup-item').forEach(el => {
+            el.classList.replace('border-blue-500', 'border-slate-100');
+            el.classList.remove('bg-blue-50', 'dark:bg-blue-900/20');
+        });
+        
+        if (element) {
+            element.classList.replace('border-slate-100', 'border-blue-500');
+            element.classList.add('bg-blue-50', 'dark:bg-blue-900/20');
+        }
+
+        const confirmBtn = document.getElementById('confirmPickupBtn');
+        if (confirmBtn) confirmBtn.disabled = false;
     }
 }
 

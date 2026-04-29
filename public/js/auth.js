@@ -113,7 +113,7 @@ class AuthManager {
             } catch (_) { sessionStorage.removeItem('offlineSession'); }
         }
 
-        console.log('❌ No active session — unauthenticated');
+        console.debug('❌ No active session — unauthenticated');
         this.handleUnauthenticatedUser();
         this.setupFormListeners();
     }
