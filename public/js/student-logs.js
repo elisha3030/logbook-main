@@ -1324,16 +1324,7 @@ class StudentKioskManager {
             const res = await fetch('/api/faculty');
             const faculties = await res.json();
 
-            let html = `
-                <button onclick="window.kioskManager.logVisit('Superadmin')"
-                    class="doc-card kiosk-btn relative bg-white dark:bg-slate-800 rounded-[2.5rem] border-2 border-slate-100 dark:border-slate-700 p-8 flex flex-col items-center justify-center text-center transition-all duration-300 hover:shadow-2xl hover:shadow-slate-200/50 dark:hover:shadow-none hover:-translate-y-2 hover:border-blue-400 dark:hover:border-blue-500 group active:scale-95 w-full">
-                    <div class="w-20 h-20 rounded-[1.8rem] bg-blue-50 dark:bg-blue-900/20 text-blue-600 flex items-center justify-center mb-5 transition-transform duration-500 group-hover:scale-110 group-hover:rotate-3 shadow-sm border border-white/50 dark:border-white/5 overflow-hidden">
-                        <i data-lucide="user-cog" class="w-10 h-10 transition-all group-hover:drop-shadow-md"></i>
-                    </div>
-                    <h3 class="font-black text-slate-800 dark:text-white text-lg leading-tight mb-2 tracking-tight">Superadmin</h3>
-                    <p class="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.15em] leading-snug">Office Secretary</p>
-                </button>
-            `;
+            let html = '';
             if (!faculties || faculties.length === 0) {
                 // Keep html with Secretary only
             } else {
