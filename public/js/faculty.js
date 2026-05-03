@@ -1363,10 +1363,7 @@ async function init() {
         });
     }
 
-    // View Report button
-    document.getElementById('viewReportBtn')?.addEventListener('click', () => {
-        openReportModal();
-    });
+
 
     // Clock out button
     document.getElementById('clockOutBtn')?.addEventListener('click', async () => {
