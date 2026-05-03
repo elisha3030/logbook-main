@@ -182,9 +182,19 @@ class LogsManager {
             bulkApproveBtn.addEventListener('click', () => this.bulkStartService());
         }
 
+        const bulkCompleteBtn = document.getElementById('bulkCompleteBtn');
+        if (bulkCompleteBtn) {
+            bulkCompleteBtn.addEventListener('click', () => this.bulkCompleteRequests());
+        }
+
+        const bulkClaimBtn = document.getElementById('bulkClaimBtn');
+        if (bulkClaimBtn) {
+            bulkClaimBtn.addEventListener('click', () => this.bulkClaimRequests());
+        }
+
         const bulkMarkOutBtn = document.getElementById('bulkMarkOutBtn');
         if (bulkMarkOutBtn) {
-            bulkMarkOutBtn.addEventListener('click', () => this.bulkCompleteRequests());
+            bulkMarkOutBtn.addEventListener('click', () => this.handleBulkClockOut());
         }
 
         // ── Dropdown Toggles (Click instead of Hover) ──────────────────
@@ -702,13 +712,40 @@ class LogsManager {
             return;
         }
         try {
-            this.showToast(`Completing ${checkboxes.length} request(s)…`);
+            this.showToast(`Marking ${checkboxes.length} request(s) as Ready…`);
             await Promise.all(checkboxes.map(cb => this.completeRequest(cb.dataset.entryId)));
             document.getElementById('selectAllPending').checked = false;
             await this.loadEntries();
             await this.loadPendingRequests();
         } catch {
             this.showToast('Some updates failed. Please try again.', 'error');
+        }
+    }
+
+    async bulkClaimRequests() {
+        const checkboxes = [...document.querySelectorAll('.pending-row-check:checked')];
+        if (checkboxes.length === 0) {
+            this.showToast('No items selected.', 'warning');
+            return;
+        }
+        try {
+            this.showToast(`Marking ${checkboxes.length} document(s) as Claimed…`);
+            const logIds = checkboxes.map(cb => cb.dataset.entryId);
+            const res = await fetch('/api/logs/bulk-claim', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    logIds,
+                    staffName: window.authManager?.getCurrentUser?.()?.displayName || 'Staff'
+                })
+            });
+            if (!res.ok) throw new Error();
+            this.showToast('Selected documents marked as Claimed.');
+            document.getElementById('selectAllPending').checked = false;
+            await this.loadEntries();
+            await this.loadPendingRequests();
+        } catch {
+            this.showToast('Failed to mark as claimed.', 'error');
         }
     }
 
@@ -1300,6 +1337,12 @@ class LogsManager {
     }
 
     exportToCSV() {
+        const user = window.authManager?.getCurrentUser();
+        if (!user || !user.isAdmin) {
+            this.showToast('Access denied. Administrator privileges required to export data.', 'error');
+            return;
+        }
+
         if (this.filteredEntries.length === 0) {
             this.showToast('No entries to export');
             return;
@@ -1336,6 +1379,12 @@ class LogsManager {
     }
 
     printReport() {
+        const user = window.authManager?.getCurrentUser();
+        if (!user || !user.isAdmin) {
+            this.showToast('Access denied. Administrator privileges required to print reports.', 'error');
+            return;
+        }
+
         const printContent = `
             <html>
                 <head>
@@ -1494,6 +1543,12 @@ class LogsManager {
     }
 
     async generatePDFReport() {
+        const user = window.authManager?.getCurrentUser();
+        if (!user || !user.isAdmin) {
+            this.showToast('Access denied. Administrator privileges required to generate reports.', 'error');
+            return;
+        }
+
         const reportTimeFilter = document.getElementById('reportTimeFilter');
         const timeValue = reportTimeFilter ? reportTimeFilter.value : 'all';
         const now = new Date();
@@ -1502,30 +1557,39 @@ class LogsManager {
         let timeframeText = 'Complete History';
         let reportTitle = 'Complete Logbook Report';
 
-        if (timeValue !== 'all') {
+        const reportActivityFilter = document.getElementById('reportActivityFilter');
+        const activityValue = reportActivityFilter ? reportActivityFilter.value : '';
+
+        if (timeValue !== 'all' || activityValue) {
             reportEntries = this.entries.filter(entry => {
+                let matchesTime = true;
                 const entryDate = new Date(entry.timestamp);
+                
                 if (timeValue === 'today') {
-                    return entryDate.toDateString() === now.toDateString();
+                    matchesTime = entryDate.toDateString() === now.toDateString();
                 } else if (timeValue === 'week') {
                     const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-                    return entryDate >= weekAgo;
+                    matchesTime = entryDate >= weekAgo;
                 } else if (timeValue === 'month') {
                     const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-                    return entryDate >= monthAgo;
+                    matchesTime = entryDate >= monthAgo;
                 }
-                return true;
+
+                let matchesActivity = true;
+                if (activityValue) {
+                    matchesActivity = (entry.activity || '').toLowerCase().includes(activityValue.toLowerCase());
+                }
+
+                return matchesTime && matchesActivity;
             });
 
-            if (timeValue === 'today') {
-                timeframeText = 'Daily Report (Today)';
-                reportTitle = 'Daily Logbook Report';
-            } else if (timeValue === 'week') {
-                timeframeText = 'Weekly Report (Last 7 Days)';
-                reportTitle = 'Weekly Logbook Report';
-            } else if (timeValue === 'month') {
-                timeframeText = 'Monthly Report (Last 30 Days)';
-                reportTitle = 'Monthly Logbook Report';
+            if (timeValue === 'today') timeframeText = 'Daily Report (Today)';
+            else if (timeValue === 'week') timeframeText = 'Weekly Report (Last 7 Days)';
+            else if (timeValue === 'month') timeframeText = 'Monthly Report (Last 30 Days)';
+
+            if (activityValue) {
+                timeframeText += ` - ${activityValue}`;
+                reportTitle = `${activityValue} Report`;
             }
         }
 

@@ -335,6 +335,12 @@ class HistoryManager {
     }
 
     async exportHistory() {
+        const user = window.authManager?.getCurrentUser();
+        if (!user || !user.isAdmin) {
+            this.showToast('Access denied. Administrator privileges required to export data.', 'error');
+            return;
+        }
+
         if (this.filteredEntries.length === 0) {
             this.showToast('No records to export');
             return;

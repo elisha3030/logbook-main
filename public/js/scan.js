@@ -156,7 +156,53 @@ class ScannerManager {
         }, 4000);
     }
 
+    _createCardGridFromSelect(selectId, gridContainerId, cardClass) {
+        const select = document.getElementById(selectId);
+        if (!select) return;
+        
+        let grid = document.getElementById(gridContainerId);
+        if (!grid) return;
+        
+        grid.innerHTML = '';
+        
+        Array.from(select.options).forEach(option => {
+            if (!option.value) return; // Skip empty placeholder
+            
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = `${cardClass} text-left p-3 rounded-xl border-2 border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 hover:border-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-all focus:outline-none flex flex-col justify-center min-h-[64px]`;
+            btn.dataset.value = option.value;
+            
+            // Format text (remove (Specify in notes) etc for brevity)
+            let displayText = option.text.replace(' (Specify in notes)', '');
+            if (displayText.length > 25) displayText = displayText.substring(0, 22) + '...';
+
+            btn.innerHTML = `<span class="block text-xs font-bold text-slate-700 dark:text-slate-200 pointer-events-none">${displayText}</span>`;
+            
+            btn.addEventListener('click', () => {
+                select.value = option.value;
+                grid.querySelectorAll('button').forEach(b => {
+                    b.classList.remove('border-emerald-500', 'bg-emerald-50', 'dark:bg-emerald-900/30', 'ring-2', 'ring-emerald-500/20');
+                });
+                btn.classList.add('border-emerald-500', 'bg-emerald-50', 'dark:bg-emerald-900/30', 'ring-2', 'ring-emerald-500/20');
+                
+                select.dispatchEvent(new Event('change'));
+            });
+            
+            // Highlight if already selected
+            if (select.value === option.value) {
+                btn.classList.add('border-emerald-500', 'bg-emerald-50', 'dark:bg-emerald-900/30', 'ring-2', 'ring-emerald-500/20');
+            }
+            
+            grid.appendChild(btn);
+        });
+    }
+
     setupEventListeners() {
+        this._createCardGridFromSelect('documentTypeSelect', 'documentTypeGrid', 'doc-card');
+        this._createCardGridFromSelect('logActivity', 'logActivityGrid', 'activity-card');
+        this._createCardGridFromSelect('logStaff', 'logStaffGrid', 'staff-card');
+
         const scanIdBtn = document.getElementById('scanIdBtn');
         const stopScanBtn = document.getElementById('stopScanBtn');
         const regForm = document.getElementById('regForm');
@@ -224,25 +270,53 @@ class ScannerManager {
             });
         }
 
-        if (logActivity && otherActivityContainer) {
+        if (logActivity) {
             logActivity.addEventListener('change', async () => {
                 const val = logActivity.value;
-                
+                const otherActivityContainer = document.getElementById('otherActivityContainer');
+                const docTypeContainer = document.getElementById('documentTypeContainer');
+                const readyContainer = document.getElementById('readyDocumentsContainer');
+
                 // Toggle "Others" input
                 if (val === 'Others') {
-                    otherActivityContainer.classList.remove('hidden');
+                    otherActivityContainer?.classList.remove('hidden');
                     document.getElementById('otherActivityInput').required = true;
                 } else {
-                    otherActivityContainer.classList.add('hidden');
-                    document.getElementById('otherActivityInput').required = false;
+                    otherActivityContainer?.classList.add('hidden');
+                    const oi = document.getElementById('otherActivityInput');
+                    if (oi) {
+                        oi.required = false;
+                        oi.value = '';
+                    }
+                }
+
+                // Toggle "Document Request" type dropdown
+                if (val === 'Document Request') {
+                    docTypeContainer?.classList.remove('hidden');
+                    document.getElementById('documentTypeSelect').required = true;
+                } else {
+                    docTypeContainer?.classList.add('hidden');
+                    const ds = document.getElementById('documentTypeSelect');
+                    if (ds) {
+                        ds.required = false;
+                        ds.value = '';
+                    }
+                    // Clear visual selection
+                    document.getElementById('documentTypeGrid')?.querySelectorAll('button').forEach(b => {
+                        b.classList.remove('border-emerald-500', 'bg-emerald-50', 'dark:bg-emerald-900/30', 'ring-2', 'ring-emerald-500/20');
+                    });
                 }
 
                 // Handle "Document Pick-up" fetch
-                const readyContainer = document.getElementById('readyDocumentsContainer');
                 if (val === 'Document Pick-up') {
                     await this.fetchReadyDocuments();
                 } else if (readyContainer) {
                     readyContainer.classList.add('hidden');
+                    const ps = document.getElementById('pickupDocumentSelect');
+                    if (ps) {
+                        ps.required = false;
+                        ps.value = '';
+                    }
                 }
             });
         }
@@ -498,7 +572,6 @@ class ScannerManager {
             }
         }
     }
-
     displayStudentInfo(student) {
         const studentInfo = document.getElementById('studentInfo');
         studentInfo.innerHTML = `
@@ -775,10 +848,11 @@ class ScannerManager {
         const studentNumber = document.getElementById('regStudentNumber').value;
         const fullName = document.getElementById('regFullName').value;
         const studentId = document.getElementById('regStudentId').value;
+        const email = document.getElementById('regEmail').value;
         const course = document.getElementById('regCourse').value;
         const yearLevel = document.getElementById('regYearLevel').value;
 
-        if (!studentNumber || !fullName || !studentId || !course || !yearLevel) {
+        if (!studentNumber || !fullName || !studentId || !email || !course || !yearLevel) {
             this.showToast('Please fill in all required fields', 'error');
             return;
         }
@@ -787,6 +861,7 @@ class ScannerManager {
             barcode: studentNumber,
             name: fullName,
             studentId: studentId,
+            email: email,
             Course: course,
             yearLevel: yearLevel
         };
@@ -807,6 +882,7 @@ class ScannerManager {
                 id: studentNumber,
                 name: fullName,
                 studentId: studentId,
+                email: email,
                 Course: course,
                 'Year Level': yearLevel
             };
@@ -835,10 +911,13 @@ class ScannerManager {
     async logVisit() {
         let activity = document.getElementById('logActivity').value;
         const otherActivity = document.getElementById('otherActivityInput').value;
+        const docType = document.getElementById('documentTypeSelect').value;
         const staff = document.getElementById('logStaff').value;
 
         if (activity === 'Others' && otherActivity) {
             activity = otherActivity;
+        } else if (activity === 'Document Request' && docType) {
+            activity = `Document Request: ${docType}`;
         }
 
         if (!activity) {
@@ -860,6 +939,7 @@ class ScannerManager {
                         staff: staff,
                         yearLevel: this.currentStudent['Year Level'] || this.currentStudent.yearLevel || 'N/A',
                         course: this.currentStudent.Course || this.currentStudent.course || 'N/A',
+                        email: this.currentStudent.email || '',
                         date: new Date().toISOString().split('T')[0],
                         staffEmail: window.authManager?.getCurrentUser?.()?.email || ''
                     },
@@ -889,6 +969,7 @@ class ScannerManager {
                     staff: staff,
                     yearLevel: this.currentStudent['Year Level'] || this.currentStudent.yearLevel || 'N/A',
                     course: this.currentStudent.Course || this.currentStudent.course || 'N/A',
+                    email: this.currentStudent.email || '',
                     date: new Date().toISOString().split('T')[0],
                     staffEmail: window.authManager?.getCurrentUser?.()?.email || ''
                 },
@@ -1014,6 +1095,10 @@ class ScannerManager {
         // Reset forms
         document.getElementById('regForm').reset();
         document.getElementById('logVisitForm').reset();
+        
+        // Explicitly clear additional fields if needed
+        const regEmail = document.getElementById('regEmail');
+        if (regEmail) regEmail.value = '';
 
         // Clear current student and log
         this.currentStudent = null;

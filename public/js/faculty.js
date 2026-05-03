@@ -1274,7 +1274,23 @@ async function init() {
         const enforcedName = String(sessionUser?.displayName || '').trim();
         if (!enforcedName) {
             showToast('Your faculty account is missing a display name. Ask an admin to set it in Settings.', 'error');
-            setTimeout(() => { window.location.href = 'index.html'; }, 1200);
+            if (facultyNameHeader) facultyNameHeader.textContent = "Setup Required";
+            if (noFacultyState) {
+                noFacultyState.innerHTML = `
+                    <div class="text-center mb-12">
+                        <div class="w-20 h-20 bg-red-100 dark:bg-red-900/30 rounded-[2rem] flex items-center justify-center mx-auto mb-6">
+                            <i data-lucide="alert-triangle" class="w-10 h-10 text-red-600 dark:text-red-400"></i>
+                        </div>
+                        <h2 class="text-4xl font-black text-slate-800 dark:text-white tracking-tight">Account Incomplete</h2>
+                        <p class="text-slate-500 dark:text-slate-400 font-medium text-lg mt-2">Your account is missing a Display Name.<br>Please contact the administrator to update your account settings.</p>
+                    </div>
+                `;
+                noFacultyState.classList.remove('hidden');
+            }
+            statsRow?.classList.add('hidden');
+            queueCard?.classList.add('hidden');
+            document.getElementById('summaryCard')?.classList.add('hidden');
+            if (window.lucide) window.lucide.createIcons();
             return;
         }
 
@@ -1338,9 +1354,14 @@ async function init() {
     });
 
     // PDF download button
-    document.getElementById('downloadPdfBtn')?.addEventListener('click', () => {
-        generatePDF();
-    });
+    const downloadPdfBtn = document.getElementById('downloadPdfBtn');
+    if (!isAdmin) {
+        downloadPdfBtn?.classList.add('hidden');
+    } else {
+        downloadPdfBtn?.addEventListener('click', () => {
+            generatePDF();
+        });
+    }
 
     // View Report button
     document.getElementById('viewReportBtn')?.addEventListener('click', () => {

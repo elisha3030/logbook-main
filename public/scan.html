@@ -121,7 +121,7 @@
         <!-- Sidebar Footer -->
         <div class="p-6 border-t border-slate-800 flex flex-col gap-4">
             <a href="index.html"
-                class="admin-only flex items-center justify-center gap-2 w-full py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-black text-[10px] uppercase tracking-widest shadow-md shadow-emerald-500/30 hover:-translate-y-0.5 hover:shadow-emerald-500/40 active:scale-95 transition-all group overflow-hidden relative">
+                class="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-black text-[10px] uppercase tracking-widest shadow-md shadow-emerald-500/30 hover:-translate-y-0.5 hover:shadow-emerald-500/40 active:scale-95 transition-all group overflow-hidden relative">
                 <div class="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300"></div>
                 <div class="relative z-10 flex items-center justify-center gap-2">
                     <i data-lucide="monitor-stop" class="w-4 h-4 group-hover:scale-110 transition-transform"></i>
@@ -258,6 +258,13 @@
                                             class="block w-full border-2 border-slate-200 dark:border-slate-600 rounded-2xl px-5 py-4 bg-slate-50 dark:bg-slate-700 focus:bg-white dark:focus:bg-slate-600 focus:border-amber-500 focus:ring-4 focus:ring-amber-500/5 outline-none transition-all font-bold text-slate-700 dark:text-white dark:placeholder-slate-400">
                                     </div>
                                     <div class="space-y-2">
+                                        <label for="regEmail"
+                                            class="block text-xs font-black uppercase tracking-widest text-slate-400 dark:text-slate-300 ml-1">Email
+                                            Address (for Alerts)</label>
+                                        <input type="email" id="regEmail" required placeholder="name@email.com"
+                                            class="block w-full border-2 border-slate-200 dark:border-slate-600 rounded-2xl px-5 py-4 bg-slate-50 dark:bg-slate-700 focus:bg-white dark:focus:bg-slate-600 focus:border-amber-500 focus:ring-4 focus:ring-amber-500/5 outline-none transition-all font-bold text-slate-700 dark:text-white dark:placeholder-slate-400">
+                                    </div>
+                                    <div class="space-y-2">
                                         <label for="regCourse"
                                             class="block text-xs font-black uppercase tracking-widest text-slate-400 dark:text-slate-300 ml-1">Academic
                                             Program</label>
@@ -353,21 +360,38 @@
                                         <i data-lucide="list-checks" class="w-4 h-4 text-emerald-500"></i>
                                         What is the purpose of this visit?
                                     </label>
-                                    <div class="relative">
-                                        <select id="logActivity" required
-                                            class="block w-full border-none rounded-2xl px-6 py-4.5 bg-slate-50 dark:bg-slate-700 focus:bg-white dark:focus:bg-slate-600 focus:ring-4 focus:ring-emerald-500/10 outline-none transition-all font-bold text-slate-800 dark:text-white appearance-none">
+                                        <select id="logActivity" required class="opacity-0 absolute -z-10 w-1 h-1">
                                             <option value="">Select Activity</option>
-                                            <option value="Enrollment Concern">Enrollment Concern</option>
                                             <option value="Document Request">Document Request</option>
-                                            <option value="Document Pick-up">Document Pick-up</option>
-                                            <option value="Financial Concern">Financial Concern</option>
-                                            <option value="Inquiry">Inquiry</option>
+                                            <option value="Document Pick-up">Document Pick-up / Claiming</option>
+                                            <option value="Inquiry / Follow-up">Inquiry / Follow-up</option>
+                                            <option value="Consultation">Consultation</option>
+                                            <option value="Clearance Signing">Clearance Signing</option>
                                             <option value="Others">Others</option>
                                         </select>
-                                        <div
-                                            class="absolute right-6 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400 dark:text-slate-300">
-                                            <i data-lucide="chevron-down" class="w-5 h-5"></i>
-                                        </div>
+                                        <div id="logActivityGrid" class="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-2"></div>
+
+                                    <!-- Document Type Selection (New) -->
+                                    <div id="documentTypeContainer" class="hidden animate-in fade-in slide-in-from-top-2 duration-200">
+                                        <label for="documentTypeSelect"
+                                            class="block text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-300 ml-1 mb-2">Specify Document Type</label>
+                                        <select id="documentTypeSelect"
+                                            class="opacity-0 absolute -z-10 w-1 h-1">
+                                            <option value="">Select Document</option>
+                                            <option value="Certificate of Registration">Certificate of Registration</option>
+                                            <option value="Certificate of Enrollment">Certificate of Enrollment</option>
+                                            <option value="Certificate of Graduation">Certificate of Graduation</option>
+                                            <option value="Transcript of Records">Transcript of Records</option>
+                                            <option value="Certification of Grades">Certification of Grades</option>
+                                            <option value="Course Description">Course Description</option>
+                                            <option value="Syllabus">Syllabus</option>
+                                            <option value="Honorable Dismissal">Honorable Dismissal</option>
+                                            <option value="Clearance">Clearance</option>
+                                            <option value="Diploma">Diploma</option>
+                                            <option value="Enrollment Form">Enrollment Form</option>
+                                            <option value="Other Document">Other (Specify in notes)</option>
+                                        </select>
+                                        <div id="documentTypeGrid" class="grid grid-cols-2 gap-2 mt-2"></div>
                                     </div>
                                     <!-- Dynamic Other Activity Input -->
                                     <div id="otherActivityContainer"
@@ -403,19 +427,13 @@
                                         <i data-lucide="user-check" class="w-4 h-4 text-emerald-500"></i>
                                         Who are you visiting?
                                     </label>
-                                    <div class="relative">
-                                        <select id="logStaff"
-                                            class="block w-full border-none rounded-2xl px-6 py-4.5 bg-slate-50 dark:bg-slate-700 focus:bg-white dark:focus:bg-slate-600 focus:ring-4 focus:ring-emerald-500/10 outline-none transition-all font-bold text-slate-800 dark:text-white appearance-none">
-                                            <option value="">Select Staff</option>
-                                            <option value="Engr. Mariciel Teogangco">Engr. Mariciel Teogangco</option>
-                                            <option value="Engr. Alvin Destajo">Engr. Alvin Destajo</option>
-                                            <option value="Engr. Arlene Evangelista">Engr. Arlene Evangelista</option>
-                                        </select>
-                                        <div
-                                            class="absolute right-6 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400 dark:text-slate-300">
-                                            <i data-lucide="chevron-down" class="w-5 h-5"></i>
-                                        </div>
-                                    </div>
+                                    <select id="logStaff" class="opacity-0 absolute -z-10 w-1 h-1">
+                                        <option value="">Select Staff</option>
+                                        <option value="Engr. Mariciel Teogangco">Engr. Mariciel Teogangco</option>
+                                        <option value="Engr. Alvin Destajo">Engr. Alvin Destajo</option>
+                                        <option value="Engr. Arlene Evangelista">Engr. Arlene Evangelista</option>
+                                    </select>
+                                    <div id="logStaffGrid" class="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2"></div>
                                 </div>
 
                                 <button type="submit"

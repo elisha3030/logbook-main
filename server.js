@@ -1,4 +1,4 @@
-console.log('--- SERVER STARTING ---');
+console.log('--- SERVER STARTING v2 ---');
 require('dotenv').config();
 
 // Set LOGBOOK_VERBOSE=1 to enable detailed startup logs.
@@ -323,8 +323,8 @@ async function initializeLocalDb() {
 // Nodemailer Transporter Initialization
 const transporter = nodemailer.createTransport({
     host: process.env.SMTP_HOST || 'smtp.gmail.com',
-    port: parseInt(process.env.SMTP_PORT || '587'),
-    secure: process.env.SMTP_PORT == 465,
+    port: parseInt(process.env.SMTP_PORT || '587', 10),
+    secure: process.env.SMTP_PORT == 465, // true for 465, false for other ports
     auth: {
         user: process.env.SMTP_USER,
         pass: process.env.SMTP_PASS
@@ -339,14 +339,14 @@ async function sendStudentNotification(targetEmail, studentName, activity, type 
     }
 
     let subject, headerText, bodyText, instructions;
-    const lowerActivity = (activity || '').toLowerCase();
     const isDoc = isDocumentRequestActivity(activity);
 
     if (type === 'received') {
-        subject = '📥 Document Request Received';
-        headerText = 'Request Received';
-        bodyText = `Your document request for <strong>${activity}</strong> has been received by the <strong>${process.env.OFFICE_NAME || 'Engineering Office'}</strong>.`;
-        instructions = 'Your document is now in the office queue.';
+        const isSubmission = isDocumentSubmissionActivity(activity);
+        subject = isSubmission ? '📥 Document Submission Received' : '📥 Document Request Received';
+        headerText = isSubmission ? 'Submission Received' : 'Request Received';
+        bodyText = `Your document ${isSubmission ? 'submission' : 'request'} for <strong>${activity}</strong> has been received by the <strong>${process.env.OFFICE_NAME || 'Engineering Office'}</strong>.`;
+        instructions = isSubmission ? 'Your document is now awaiting staff review.' : 'Your document is now in the office queue.';
     } else if (type === 'processing') {
         subject = '⚙️ Document Being Processed';
         headerText = 'Processing Started';
@@ -518,7 +518,6 @@ app.get('/api/logs', async (req, res) => {
 
         if (studentNumber) {
             // Unify history: Check both barcode and studentId
-            // First, try to find the student to get all identifiers
             const student = await localDb.get(
                 'SELECT barcode, studentId FROM students WHERE barcode = ? OR studentId = ?',
                 [studentNumber, studentNumber]
@@ -531,6 +530,24 @@ app.get('/api/logs', async (req, res) => {
                 query += ' AND (studentNumber = ? OR studentId = ?)';
                 params.push(studentNumber, studentNumber);
             }
+        }
+
+        // Filtering by Transaction Type (activity)
+        const { activityType } = req.query;
+        if (activityType) {
+            query += ' AND LOWER(activity) LIKE ?';
+            params.push(`%${activityType.toLowerCase()}%`);
+        }
+
+        // Filtering by Date Range
+        const { startDate, endDate } = req.query;
+        if (startDate) {
+            query += ' AND date >= ?';
+            params.push(startDate);
+        }
+        if (endDate) {
+            query += ' AND date <= ?';
+            params.push(endDate);
         }
 
         query += ' ORDER BY timeIn DESC LIMIT ?';
@@ -561,7 +578,7 @@ app.patch('/api/logs/bulk-complete', async (req, res) => {
 
         // 1. Update local DB
         await localDb.run(
-            `UPDATE logs SET timeOut = ?, status = 'completed', docStatus = 'Out', synced = 0 WHERE id IN (${placeholders})`,
+            `UPDATE logs SET timeOut = ?, status = 'completed', synced = 0 WHERE id IN (${placeholders})`,
             [timeOut, ...logIds]
         );
 
@@ -599,8 +616,63 @@ app.patch('/api/logs/bulk-complete', async (req, res) => {
     }
 });
 
-// GET all students (Local-First)
-app.get('/api/students', async (req, res) => {
+// Bulk claim/release logs
+app.patch('/api/logs/bulk-claim', async (req, res) => {
+    try {
+        const { logIds, staffName } = req.body;
+        if (!logIds || !Array.isArray(logIds)) {
+            return res.status(400).json({ error: 'logIds array required' });
+        }
+
+        if (logIds.length === 0) {
+            return res.json({ success: true, count: 0 });
+        }
+
+        const placeholders = logIds.map(() => '?').join(',');
+
+        // 1. Update local DB
+        await localDb.run(
+            `UPDATE logs SET docStatus = 'Out', synced = 0 WHERE id IN (${placeholders})`,
+            logIds
+        );
+
+        // 2. Write audit
+        await writeAudit(staffName, 'bulk_claim_logs', { count: logIds.length, logIds });
+
+        res.json({ success: true, count: logIds.length });
+        
+        // 3. Trigger cloud sync (async)
+        syncLogsToCloud();
+
+        // 4. Send email notifications
+        (async () => {
+            try {
+                for (const id of logIds) {
+                    const log = await localDb.get('SELECT activity, studentName, studentNumber, studentId, email FROM logs WHERE id = ?', id);
+                    if (log) {
+                        let targetEmail = log.email;
+                        if (!targetEmail) {
+                            const student = await localDb.get('SELECT email FROM students WHERE barcode = ? OR studentId = ?', [log.studentNumber, log.studentId]);
+                            if (student) targetEmail = student.email;
+                        }
+                        if (targetEmail) {
+                            sendStudentNotification(targetEmail, log.studentName, log.activity, 'claimed');
+                        }
+                    }
+                }
+            } catch (err) {
+                console.error('❌ Error sending bulk claim emails:', err);
+            }
+        })();
+    } catch (error) {
+        console.error('Error in bulk claim logs:', error);
+        res.status(500).json({ error: 'Failed to claim logs' });
+    }
+});
+
+
+// GET all students (Local-First; Admin only)
+app.get('/api/students', requireAdmin, async (req, res) => {
     try {
         const students = await localDb.all('SELECT * FROM students ORDER BY name ASC');
         res.json(students);
@@ -992,6 +1064,14 @@ app.post('/api/register-log', async (req, res) => {
         // 3. Trigger background sync
         syncStudentsToCloud();
         syncToCloud();
+
+        // 4. Send submission alert if it's a document request or submission
+        if (isDocumentRequestActivity(logData.activity) || isDocumentSubmissionActivity(logData.activity)) {
+            const targetEmail = logData.email || studentData.email;
+            if (targetEmail) {
+                sendStudentNotification(targetEmail, logData.studentName, logData.activity, 'received');
+            }
+        }
     } catch (error) {
         console.error('Error registering student/log:', error);
         res.status(500).json({ error: 'Failed to process registration' });
@@ -1007,10 +1087,13 @@ app.post('/api/logs', async (req, res) => {
         // All kiosk entries are document requests — start as Incoming
         const docStatus = logData.docStatus || 'In';
 
+        const status = logData.status || 'pending';
+        const timeOut = logData.timeOut || null;
+
         await localDb.run(
             `INSERT INTO logs 
-            (id, studentNumber, studentName, studentId, activity, staff, yearLevel, course, date, timeIn, staffEmail, officeId, synced, status, docStatus, email) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 'pending', ?, ?)`,
+            (id, studentNumber, studentName, studentId, activity, staff, yearLevel, course, date, timeIn, timeOut, staffEmail, officeId, synced, status, docStatus, email) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?)`,
             [
                 logId,
                 logData.studentNumber,
@@ -1022,8 +1105,10 @@ app.post('/api/logs', async (req, res) => {
                 logData.course,
                 logData.date,
                 timeIn,
+                timeOut,
                 logData.staffEmail,
                 officeId,
+                status,
                 docStatus,
                 logData.email || null
             ]
@@ -1034,8 +1119,8 @@ app.post('/api/logs', async (req, res) => {
         // Trigger sync attempt
         syncToCloud();
 
-        // Send submission alert if it's a document request
-        if (isDocumentRequestActivity(logData.activity)) {
+        // Send submission alert if it's a document request or submission
+        if (isDocumentRequestActivity(logData.activity) || isDocumentSubmissionActivity(logData.activity)) {
             let targetEmail = logData.email;
             if (!targetEmail) {
                 const student = await localDb.get('SELECT email FROM students WHERE barcode = ? OR studentId = ?', [logData.studentNumber, logData.studentId]);
@@ -1169,7 +1254,6 @@ app.patch('/api/logs/:id/claim', async (req, res) => {
         res.status(500).json({ error: 'Failed to claim document request' });
     }
 });
-
 // Mark log as completed (Staff/Teacher action)
 app.patch('/api/logs/:id/complete', async (req, res) => {
     try {
@@ -1352,29 +1436,44 @@ function requireAdmin(req, res, next) {
 
 function isDocumentRequestActivity(activity) {
     const a = String(activity || '').trim().toLowerCase();
-    if (a.startsWith('document request')) return true;
     
-    // Keywords that indicate a document/form that typically needs processing and pickup
-    const docKeywords = [
-        'certificate', 'certification', 'transcript', 'tor', 'cor', 'cog', 
-        'clearance', 'form', 'dismissal', 'diploma', 'id card', 'request', 'paper',
-        'application', 'permit', 'records', 'evaluation', 'eval', 'authentication', 'verification'
+    // Standardized list of document request types
+    const documentTypes = [
+        'certificate of registration',
+        'certificate of enrollment',
+        'certificate of graduation',
+        'transcript of records',
+        'certification of grades',
+        'course description',
+        'syllabus',
+        'honorable dismissal',
+        'clearance',
+        'diploma',
+        'enrollment form'
     ];
+
+    // Check if it's explicitly a "Document Request"
+    if (a.startsWith('document request')) return true;
+
+    // Check against standardized types
+    if (documentTypes.some(type => a.includes(type))) {
+        // Exclude pick-up activities
+        const excludeKeywords = ['pick-up', 'pickup', 'claim', 'release'];
+        return !excludeKeywords.some(k => a.includes(k));
+    }
     
-    // Exclude activities that are definitely not document requests
-    const excludeKeywords = ['pick-up', 'pickup', 'inquiry', 'consultation', 'inquiries'];
-    
-    const isDoc = docKeywords.some(k => a.includes(k));
-    const isExcluded = excludeKeywords.some(k => a.includes(k));
-    
-    return isDoc && !isExcluded;
+    return false;
+}
+
+function isDocumentSubmissionActivity(activity) {
+    const a = String(activity || '').trim().toLowerCase();
+    return a.startsWith('document submission');
 }
 
 function isDocumentPickupActivity(activity) {
     const a = String(activity || '').trim().toLowerCase();
-    return a.startsWith('document pick-up') || a.startsWith('document pickup');
+    return a.startsWith('document pick-up') || a.startsWith('document pickup') || a.startsWith('document claim');
 }
-
 // Force-close all stuck active sessions (admin utility)
 app.delete('/api/logs/clear-active', requireAdmin, async (req, res) => {
     try {
@@ -1529,6 +1628,97 @@ app.get('/api/faculty', async (req, res) => {
     } catch (error) {
         console.error('Error fetching faculty list:', error);
         res.status(500).json({ error: 'Failed to fetch faculty list' });
+    }
+});
+
+// ── GET /api/staff-stats — per-staff aggregated stats (admin only) ──────────
+app.get('/api/staff-stats', requireAdmin, async (req, res) => {
+    try {
+        const { officeId = 'engineering-office', startDate, endDate } = req.query;
+
+        // Build date filter clause
+        let dateClause = '';
+        const dateParams = [];
+        if (startDate) { dateClause += ' AND date >= ?'; dateParams.push(startDate); }
+        if (endDate)   { dateClause += ' AND date <= ?'; dateParams.push(endDate); }
+
+        const today = new Date().toISOString().split('T')[0];
+
+        // --- Get the same staff list used by the kiosk ---
+        const sRows = await localDb.all('SELECT key, value FROM settings');
+        const settings = {};
+        for (const row of sRows) settings[row.key] = row.value;
+
+        let dynamicFaculty = [];
+        const raw = settings.faculty || settings.facultyList;
+        if (raw) {
+            try {
+                const parsed = JSON.parse(raw);
+                if (Array.isArray(parsed)) {
+                    dynamicFaculty = parsed.map(f => (typeof f === 'string' ? f : f.name)).filter(Boolean);
+                }
+            } catch (_) {}
+        }
+
+        const hardCoded = ['Mr. Alvin Destajo', 'Dr. Mariciel Teogangco', 'Ms. Arlene Evangelista'];
+        
+        // If still empty, fall back to admins (same as /api/faculty)
+        let fallbackNames = [];
+        if (dynamicFaculty.length === 0) {
+            const adminRows = await localDb.all('SELECT displayName FROM admin_users');
+            fallbackNames = adminRows.map(a => a.displayName).filter(Boolean);
+        }
+
+        const allNames = [...new Set([...hardCoded, ...dynamicFaculty, ...fallbackNames])];
+
+        // For each staff name, aggregate from logs
+        const statsPromises = allNames.map(async name => {
+            const base = [officeId, name, ...dateParams];
+
+            const [total, todayCount, pending, completed, lastRow, avgRow] = await Promise.all([
+                localDb.get(
+                    `SELECT COUNT(*) as count FROM logs WHERE officeId = ? AND LOWER(TRIM(staff)) = LOWER(TRIM(?))${dateClause}`,
+                    base
+                ),
+                localDb.get(
+                    `SELECT COUNT(*) as count FROM logs WHERE officeId = ? AND LOWER(TRIM(staff)) = LOWER(TRIM(?)) AND date = ?`,
+                    [officeId, name, today]
+                ),
+                localDb.get(
+                    `SELECT COUNT(*) as count FROM logs WHERE officeId = ? AND LOWER(TRIM(staff)) = LOWER(TRIM(?)) AND (status IS NULL OR LOWER(status) = 'pending')${dateClause}`,
+                    base
+                ),
+                localDb.get(
+                    `SELECT COUNT(*) as count FROM logs WHERE officeId = ? AND LOWER(TRIM(staff)) = LOWER(TRIM(?)) AND LOWER(status) IN ('completed', 'claimed')${dateClause}`,
+                    base
+                ),
+                localDb.get(
+                    `SELECT timeIn FROM logs WHERE officeId = ? AND LOWER(TRIM(staff)) = LOWER(TRIM(?)) ORDER BY timeIn DESC LIMIT 1`,
+                    [officeId, name]
+                ),
+                localDb.get(
+                    `SELECT AVG((julianday(timeOut) - julianday(timeIn)) * 1440) as avg FROM logs
+                     WHERE officeId = ? AND LOWER(TRIM(staff)) = LOWER(TRIM(?)) AND timeOut IS NOT NULL${dateClause}`,
+                    base
+                )
+            ]);
+
+            return {
+                name,
+                total:   total?.count   || 0,
+                today:   todayCount?.count || 0,
+                pending: pending?.count  || 0,
+                completed: completed?.count || 0,
+                lastActive: lastRow?.timeIn || null,
+                avgResponseMinutes: avgRow?.avg ? Math.round(avgRow.avg) : null
+            };
+        });
+
+        const stats = await Promise.all(statsPromises);
+        res.json(stats);
+    } catch (error) {
+        console.error('Error fetching staff stats:', error);
+        res.status(500).json({ error: 'Failed to fetch staff stats' });
     }
 });
 
@@ -1816,9 +2006,40 @@ app.post('/api/auth/firebase-login', async (req, res) => {
         }
 
         // Create server session
-        req.session.user = { email: normalizedEmail, offlineMode: false };
+        const adminUser = await localDb.get(
+            'SELECT displayName, role FROM admin_users WHERE email = ?',
+            normalizedEmail
+        );
+
+        let role = '';
+        let displayName = '';
+        let isAdmin = false;
+        let isFaculty = false;
+
+        if (adminUser) {
+            role = String(adminUser.role || 'admin').toLowerCase().trim();
+            displayName = adminUser.displayName || '';
+            isAdmin = isAdminRole(role);
+            isFaculty = isFacultyRole(role);
+        }
+
+        req.session.user = { 
+            email: normalizedEmail, 
+            displayName, 
+            role, 
+            isAdmin, 
+            isFaculty, 
+            offlineMode: false 
+        };
         console.log(`✅ Firebase-authenticated session created for ${normalizedEmail}`);
-        res.json({ success: true, email: normalizedEmail });
+        res.json({ 
+            success: true, 
+            email: normalizedEmail,
+            displayName,
+            role,
+            isAdmin,
+            isFaculty
+        });
     } catch (error) {
         console.error('Error in firebase-login:', error);
         res.status(500).json({ error: 'Session creation failed' });

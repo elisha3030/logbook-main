@@ -167,7 +167,13 @@ class AuthManager {
             if (loginRes.ok && loginData.success) {
                 // Server created a session — we're done.
                 console.log('✅ Local auth success:', email);
-                window.location.href = 'index.html';
+                if (loginData.isFaculty && !loginData.isAdmin) {
+                    window.location.href = 'faculty.html';
+                } else if (loginData.isAdmin) {
+                    window.location.href = 'dashboard.html';
+                } else {
+                    window.location.href = 'index.html';
+                }
                 return;
             }
 
@@ -213,7 +219,13 @@ class AuthManager {
             }
 
             console.log('✅ Server session created — redirecting...');
-            window.location.href = 'index.html';
+            if (sessionData.isFaculty && !sessionData.isAdmin) {
+                window.location.href = 'faculty.html';
+            } else if (sessionData.isAdmin) {
+                window.location.href = 'dashboard.html';
+            } else {
+                window.location.href = 'index.html';
+            }
 
         } catch (error) {
             console.error('❌ Login error:', error);
@@ -293,7 +305,7 @@ class AuthManager {
         }
 
         // Admin-only page restriction
-        const adminPages = ['dashboard.html', 'settings.html', 'history.html', 'students.html'];
+        const adminPages = ['dashboard.html', 'settings.html', 'history.html', 'students.html', 'staff-monitor.html'];
         if (adminPages.includes(currentPage) && !flags.isAdmin) {
             console.warn('⛔ Access denied: Admin only page');
             this.showToast('Access denied. Administrator privileges required.', 'error');
@@ -320,7 +332,7 @@ class AuthManager {
 
     handleUnauthenticatedUser() {
         const currentPage = window.location.pathname.split('/').pop() || 'index.html';
-        const protectedPages = ['dashboard.html', 'settings.html', 'history.html', 'students.html', 'faculty.html'];
+        const protectedPages = ['dashboard.html', 'settings.html', 'history.html', 'students.html', 'faculty.html', 'staff-monitor.html'];
         if (protectedPages.includes(currentPage)) {
             window.location.href = 'login.html';
         }
@@ -347,9 +359,7 @@ class AuthManager {
 
     updateAuthenticatedUI(user) {
         const flags = this._deriveRoleFlags(user);
-        const isFaculty = flags.isFaculty;
-        const isStaff = flags.isStaff;
-        const isAdmin = flags.isAdmin;
+        const { isAdmin, isFaculty, isStaff, role } = flags;
 
         document.querySelectorAll('.user-email').forEach(el => {
             el.textContent = user.email;
@@ -361,23 +371,22 @@ class AuthManager {
             el.classList.add('hidden');
         });
         
-        // Staff-only elements (faculty hub entry) for faculty/admin
+        // Suggestion 4 & 5: Role-based element visibility
+        // .staff-only: Transactional actions (Secretary/Faculty/Superadmin)
+        // .admin-only: Monitoring, Reporting, Settings (Admin/Superadmin)
+        
+        const canDoTransactions = isFaculty || role === 'superadmin';
+        const canSeeReports = isAdmin;
+
         document.querySelectorAll('.staff-only').forEach(el => {
-            el.classList.toggle('hidden', !isStaff);
+            el.classList.toggle('hidden', !canDoTransactions);
         });
 
-        // Hide admin-only elements for non-admin users
-        if (!isAdmin) {
-            document.querySelectorAll('.admin-only').forEach(el => {
-                el.classList.add('hidden');
-            });
-        } else {
-            document.querySelectorAll('.admin-only').forEach(el => {
-                el.classList.remove('hidden');
-            });
-        }
+        document.querySelectorAll('.admin-only').forEach(el => {
+            el.classList.toggle('hidden', !canSeeReports);
+        });
 
-        // Hide kiosk/user-only elements for logged-in staff (admin OR faculty)
+        // Hide kiosk/user-only elements for logged-in staff
         if (isStaff) {
             document.querySelectorAll('.user-only').forEach(el => {
                 el.classList.add('hidden');
@@ -387,9 +396,19 @@ class AuthManager {
 
     _deriveRoleFlags(user) {
         const role = String(user?.role || '').toLowerCase().trim();
-        const isFaculty = role === 'faculty' || (!!user?.isFaculty && role !== 'admin' && role !== 'superadmin');
-        const isAdmin = (role === 'admin' || role === 'superadmin') || (!!user?.isAdmin && !isFaculty);
-        const isStaff = isAdmin || isFaculty;
+        
+        // Suggestion 4 & 5: Simplified roles
+        // Admin: Monitoring + Reports only
+        // Staff/Faculty: Secretary who handles transactions
+        
+        const isAdmin = (role === 'admin' || role === 'superadmin');
+        const isFaculty = role === 'faculty' || role === 'staff' || role === 'secretary';
+        const isStaff = isAdmin || isFaculty; // General staff access
+
+        // Refined flags for UI visibility
+        // .admin-only: Reports, Export, Settings
+        // .staff-only: Transaction buttons (Start Service, Complete, Claim)
+        
         return { role, isAdmin, isFaculty, isStaff };
     }
 
