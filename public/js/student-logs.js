@@ -635,6 +635,11 @@ class StudentKioskManager {
         document.getElementById('toggleStudentIdBtn')?.addEventListener('click', () => this.toggleIdVisibility());
         document.getElementById('revealHistoryBtn')?.addEventListener('click',   () => this.revealHistory());
         document.getElementById('toggleHistoryVisibilityBtn')?.addEventListener('click', () => this.hideHistory());
+        document.getElementById('viewAllHistoryBtn')?.addEventListener('click', () => {
+            if (this.currentStudent) {
+                this.fetchAndRenderLogs(this.currentStudent.id, 100);
+            }
+        });
 
         // ── Proof modal ────
         const closeProof  = document.getElementById('closeProofModal');
@@ -824,16 +829,19 @@ class StudentKioskManager {
         const screen = document.getElementById('historyPrivacyScreen');
         const content = document.getElementById('historyContent');
         const toggleBtn = document.getElementById('toggleHistoryVisibilityBtn');
+        const viewAllBtn = document.getElementById('viewAllHistoryBtn');
         if (!screen || !content) return;
 
         if (this.isHistoryVisible) {
             screen.classList.add('hidden');
             content.classList.remove('hidden');
             toggleBtn?.classList.remove('hidden');
+            // We only show viewAllBtn if we have logs and it's not already clicked (handled in fetchAndRenderLogs)
         } else {
             screen.classList.remove('hidden');
             content.classList.add('hidden');
             toggleBtn?.classList.add('hidden');
+            viewAllBtn?.classList.add('hidden');
         }
     }
 
@@ -1512,7 +1520,7 @@ class StudentKioskManager {
     // ── Show: History ──────────────────────────────────────────
     showStudentHistory(student) {
         this.hideAllScreens();
-        this.updateStepIndicator(1);
+        this.updateStepIndicator(0);
 
         const screen = document.getElementById('logContent');
         if (!screen) return;
@@ -1533,9 +1541,10 @@ class StudentKioskManager {
         this.setupLucide();
     }
 
-    async fetchAndRenderLogs(studentNumber) {
+    async fetchAndRenderLogs(studentNumber, limit = 5) {
         const tableBody = document.getElementById('studentTableBody');
         const noLogs    = document.getElementById('noLogsMessage');
+        const viewAllBtn = document.getElementById('viewAllHistoryBtn');
         if (!tableBody) return;
 
         tableBody.innerHTML = `
@@ -1550,14 +1559,24 @@ class StudentKioskManager {
         `;
 
         try {
-            const res  = await fetch(`/api/logs?studentNumber=${studentNumber}&limit=5`);
+            const res  = await fetch(`/api/logs?studentNumber=${studentNumber}&limit=${limit}`);
             const logs = await res.json();
 
             if (!logs || logs.length === 0) {
                 tableBody.innerHTML = '';
                 noLogs?.classList.remove('hidden');
+                viewAllBtn?.classList.add('hidden');
             } else {
                 noLogs?.classList.add('hidden');
+                
+                // Show "View All" button only if we fetched 5 logs (suggesting there might be more)
+                // and we haven't already fetched 100.
+                if (limit === 5 && logs.length === 5) {
+                    viewAllBtn?.classList.remove('hidden');
+                } else {
+                    viewAllBtn?.classList.add('hidden');
+                }
+
                 tableBody.innerHTML = logs.map(log => {
                     const date = new Date(log.timeIn).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
 
