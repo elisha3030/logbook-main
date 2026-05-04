@@ -621,6 +621,8 @@ class StudentKioskManager {
             if (modal) modal.classList.add('hidden');
         });
 
+        document.getElementById('logOutAllBtn')?.addEventListener('click', () => this.handleTimeOutAll());
+
         document.getElementById('viewHistoryTimeOutBtn')?.addEventListener('click', () => {
             if (this.currentStudent) this.showStudentHistory(this.currentStudent);
         });
@@ -649,6 +651,22 @@ class StudentKioskManager {
         proofModal?.addEventListener('click', (e) => { if (e.target === proofModal) proofModal.classList.add('hidden'); });
 
         // ── Pick-up Confirmation Modal ────
+        document.getElementById('nextPickupBtn')?.addEventListener('click', () => {
+            if (this.selectedPickupDoc) {
+                document.getElementById('pickupSelectionView')?.classList.add('hidden');
+                document.getElementById('pickupConfirmView')?.classList.remove('hidden');
+                const titleEl = document.getElementById('confirmPickupDocTitle');
+                if (titleEl) titleEl.textContent = this.selectedPickupDoc;
+                this.setupLucide();
+            }
+        });
+
+        document.getElementById('backToSelectionBtn')?.addEventListener('click', () => {
+            document.getElementById('pickupConfirmView')?.classList.add('hidden');
+            document.getElementById('pickupSelectionView')?.classList.remove('hidden');
+            this.setupLucide();
+        });
+
         document.getElementById('confirmPickupBtn')?.addEventListener('click', () => {
             if (this.selectedPickupDoc) {
                 this.selectedDocument = { 
@@ -669,6 +687,8 @@ class StudentKioskManager {
             this.selectedPickupDoc = null;
             this.selectedPickupRequestId = null;
         });
+
+        document.getElementById('pickUpAllBtn')?.addEventListener('click', () => this.handlePickUpAll());
 
         // ── Success screen ────
         document.getElementById('anotherTransactionBtn')?.addEventListener('click', () => {
@@ -778,6 +798,8 @@ class StudentKioskManager {
         // Hide modals
         document.getElementById('multiSessionSignOutModal')?.classList.add('hidden');
         document.getElementById('pickupConfirmationModal')?.classList.add('hidden');
+        document.getElementById('pickupSelectionView')?.classList.remove('hidden');
+        document.getElementById('pickupConfirmView')?.classList.add('hidden');
 
         const customDocInput = document.getElementById('customDocInput');
         if (customDocInput) customDocInput.value = '';
@@ -898,13 +920,6 @@ class StudentKioskManager {
 
     // ── Time-out handler ───────────────────────────────────────
     async handleTimeOut(logId = null) {
-        function updateClock() {
-            const now = new Date();
-            const timeEl = document.getElementById('liveClock');
-            const dateEl = document.getElementById('liveDate');
-            if (timeEl) timeEl.textContent = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-            if (dateEl) dateEl.textContent = now.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
-        }
         const activeLogs = this.currentStudent?.activeLogs || [];
         const targetLog = logId ? activeLogs.find(l => l.id === logId) : activeLogs[0];
         
@@ -918,7 +933,6 @@ class StudentKioskManager {
             });
             if (res.ok) {
                 this.showToast('Signed out successfully. Thank you!', 'success');
-                // Hide modal if open
                 document.getElementById('multiSessionSignOutModal')?.classList.add('hidden');
                 this.resetUI();
             } else {
@@ -926,6 +940,84 @@ class StudentKioskManager {
             }
         } catch (e) {
             this.showToast('Network error during sign-out.', 'error');
+        }
+    }
+
+    async handleTimeOutAll() {
+        const activeLogs = this.currentStudent?.activeLogs || [];
+        if (!activeLogs.length) return;
+
+        const btn = document.getElementById('logOutAllBtn');
+        if (btn) { btn.disabled = true; btn.textContent = 'Signing out…'; }
+
+        try {
+            await Promise.all(activeLogs.map(log =>
+                fetch(`/api/logs/${log.id}`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ officeId: this.officeId })
+                })
+            ));
+            this.showToast(`All ${activeLogs.length} session(s) signed out. See you!`, 'success');
+            document.getElementById('multiSessionSignOutModal')?.classList.add('hidden');
+            this.resetUI();
+        } catch (e) {
+            this.showToast('Network error during sign-out all.', 'error');
+            if (btn) { btn.disabled = false; btn.textContent = 'Log Out All'; }
+        }
+    }
+
+    async handlePickUpAll() {
+        const pickableLogs = this._pickableLogs || [];
+        if (!pickableLogs.length) return;
+
+        const btn = document.getElementById('pickUpAllBtn');
+        if (btn) { btn.disabled = true; btn.textContent = 'Preparing…'; }
+
+        try {
+            // Mark all original request logs as claimed
+            for (const log of pickableLogs) {
+                await fetch(`/api/logs/${log.id}/claim`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ studentNumber: this.currentStudent.id, officeId: this.officeId })
+                });
+            }
+
+            // Create a SINGLE PENDING log for the "Pick-up All" action so it shows in history
+            const bulkLogData = {
+                studentNumber: this.currentStudent.id,
+                studentName:   this.currentStudent.name,
+                studentId:     this.currentStudent.studentId || 'N/A',
+                activity:      `Document Pick-up (${pickableLogs.length} documents)`,
+                docType:       'pickup',
+                staff:         'General Staff',
+                yearLevel:     this.currentStudent['Year Level'] || this.currentStudent.yearLevel || 'N/A',
+                course:        this.currentStudent.Course || this.currentStudent.course || 'N/A',
+                date:          new Date().toISOString().split('T')[0],
+                docStatus:     'Out',
+                status:        'pending', // Manual log out required
+                timeOut:       null       // Manual log out required
+            };
+
+            await fetch('/api/logs', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ logData: bulkLogData, officeId: this.officeId })
+            });
+
+            document.getElementById('pickupConfirmationModal')?.classList.add('hidden');
+            
+            // Go directly to Done (Success screen) - skip staff selection
+            this.selectedActivity = 'Document Pick-up';
+            this.showSuccessScreen({
+                activity: bulkLogData.activity,
+                staff: 'General Staff'
+            });
+            
+        } catch (e) {
+            this.showToast('Failed to prepare pickup. Please try again.', 'error');
+            if (btn) { btn.disabled = false; btn.textContent = `Pick Up All (${pickableLogs.length})`; }
         }
     }
 
@@ -1060,18 +1152,18 @@ class StudentKioskManager {
         const list = document.getElementById('modalActiveSessionsList');
         if (!list) return;
 
-        list.innerHTML = activeLogs.map(log => {
+        list.innerHTML = activeLogs.map((log, idx) => {
             const timeIn = log.timeIn ? new Date(log.timeIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '---';
             const dateIn = log.timeIn ? new Date(log.timeIn).toLocaleDateString([], { month: 'short', day: 'numeric' }) : '';
             
             return `
-                <div class="flex items-center gap-4 p-4 bg-white dark:bg-slate-800 rounded-2xl border-2 border-slate-100 dark:border-slate-700 hover:border-amber-300 dark:hover:border-amber-600 transition-all cursor-pointer group"
-                    onclick="window.kioskManager.handleTimeOut('${log.id}')">
+                <div class="session-item flex items-center gap-4 p-4 bg-white dark:bg-slate-800 rounded-2xl border-2 border-slate-100 dark:border-slate-700 hover:border-amber-300 dark:hover:border-amber-600 transition-all cursor-pointer group"
+                    data-session-idx="${idx}">
                     <div class="w-12 h-12 rounded-xl bg-orange-50 dark:bg-orange-900/20 text-orange-500 group-hover:bg-orange-500 group-hover:text-white flex items-center justify-center transition-all flex-shrink-0">
                         <i data-lucide="check" class="w-6 h-6"></i>
                     </div>
                     <div class="flex-grow">
-                        <p class="font-black text-slate-800 dark:text-white text-base leading-tight">${log.activity || 'General Transaction'}</p>
+                        <p class="font-black text-slate-800 dark:text-white text-base leading-tight">${this.escape(log.activity || 'General Transaction')}</p>
                         <p class="text-[10px] font-bold text-slate-500 dark:text-slate-400 mt-0.5">Started: <span class="text-slate-700 dark:text-slate-300">${dateIn} at ${timeIn}</span></p>
                     </div>
                     <div class="text-slate-300 dark:text-slate-600 group-hover:text-amber-500 transition-all flex-shrink-0 pl-2">
@@ -1080,6 +1172,15 @@ class StudentKioskManager {
                 </div>
             `;
         }).join('');
+
+        // Safe event delegation
+        list.querySelectorAll('.session-item').forEach(el => {
+            el.addEventListener('click', () => {
+                const idx = parseInt(el.dataset.sessionIdx, 10);
+                const log = activeLogs[idx];
+                this.handleTimeOut(log.id);
+            });
+        });
         
         this.setupLucide();
     }
@@ -1457,9 +1558,14 @@ class StudentKioskManager {
         // ── Heading & subtitle ──
         const heading  = document.getElementById('successHeading');
         const subtitle = document.getElementById('successSubtitle');
+        const isPickup = String(logData.activity || '').toLowerCase().startsWith('document pick-up');
+
         if (isSubmission) {
             if (heading)  heading.textContent  = 'Document Received!';
             if (subtitle) subtitle.innerHTML   = 'Your <span class="text-emerald-600 font-black">' + logData.activity + '</span> has been submitted to the office. You\'re all set!';
+        } else if (isPickup) {
+            if (heading)  heading.textContent  = 'Pick-up Confirmed!';
+            if (subtitle) subtitle.innerHTML   = 'You have successfully claimed your <span class="text-emerald-600 font-black">' + logData.activity.replace('Document Pick-up: ', '') + '</span>. Thank you!';
         } else {
             if (heading)  heading.textContent  = 'Request Logged!';
             if (subtitle) subtitle.innerHTML   = 'Your <span id="successDocName" class="text-emerald-600 font-black">' + logData.activity + '</span> has been recorded. Please wait for staff assistance.';
@@ -1470,12 +1576,12 @@ class StudentKioskManager {
         const dot     = document.getElementById('successStatusDot');
         const badgeTxt = document.getElementById('successStatusText');
         if (badge && dot && badgeTxt) {
-            if (isSubmission) {
+            if (isSubmission || isPickup) {
                 badge.className = badge.className
                     .replace('bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800 status-pending-blink',
                              'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800');
                 dot.className = dot.className.replace('bg-amber-500', 'bg-emerald-500');
-                badgeTxt.textContent = 'Submitted';
+                badgeTxt.textContent = isPickup ? 'Claimed' : 'Submitted';
             } else {
                 badge.className = badge.className
                     .replace('bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800',
@@ -1559,7 +1665,7 @@ class StudentKioskManager {
         `;
 
         try {
-            const res  = await fetch(`/api/logs?studentNumber=${studentNumber}&limit=${limit}`);
+            const res  = await fetch(`/api/logs?studentNumber=${studentNumber}&officeId=${this.officeId}&limit=${limit}`);
             const logs = await res.json();
 
             if (!logs || logs.length === 0) {
@@ -1644,54 +1750,94 @@ class StudentKioskManager {
 
         // Reset state
         this.selectedPickupDoc = null;
-        if (confirmBtn) confirmBtn.disabled = true;
+        document.getElementById('pickupConfirmView')?.classList.add('hidden');
+        document.getElementById('pickupSelectionView')?.classList.remove('hidden');
+        
+        const nextBtn = document.getElementById('nextPickupBtn');
+        if (nextBtn) nextBtn.disabled = true;
         list.innerHTML = `<div class="flex justify-center py-8"><div class="animate-spin rounded-full h-8 w-8 border-4 border-blue-500 border-t-transparent"></div></div>`;
         modal.classList.remove('hidden');
 
         try {
-            const res  = await fetch(`/api/logs?studentNumber=${this.currentStudent.id}&limit=50`);
+            const res  = await fetch(`/api/logs?studentNumber=${this.currentStudent.id}&officeId=${this.officeId}&limit=100`);
             const logs = await res.json();
             
+            console.log('🔍 [Pick-up] Fetched logs:', logs);
+
             // Only show completed document requests that are still physically IN (ready for pick-up)
             const pickableLogs = logs.filter(l => {
-                const act = (l.activity || '').toLowerCase();
+                const act = String(l.activity || '').trim().toLowerCase();
                 
                 // Broad check for document-like activities
-                const docKeywords = ['document', 'certificate', 'certification', 'transcript', 'tor', 'cor', 'cog', 'clearance', 'form', 'dismissal', 'diploma', 'id card', 'request', 'paper', 'application', 'permit', 'records', 'evaluation', 'eval', 'authentication', 'verification'];
-                const excludeKeywords = ['pick-up', 'pickup', 'inquiry', 'consultation', 'inquiries'];
-                const isDocReq = act.startsWith('document request') || (docKeywords.some(k => act.includes(k)) && !excludeKeywords.some(k => act.includes(k)));
+                const docKeywords = ['document', 'certificate', 'certification', 'transcript', 'tor', 'cor', 'cog', 'clearance', 'form', 'dismissal', 'diploma', 'id card', 'request', 'paper', 'application', 'permit', 'records', 'evaluation', 'eval', 'authentication', 'verification', 'grades', 'gwa', 'report'];
+                const excludeKeywords = ['inquiry', 'consultation', 'inquiries'];
+                
+                // If it starts with "document request" or contains any doc keyword
+                const isDocReq = act.startsWith('document request') || docKeywords.some(k => act.includes(k));
 
-                const rs = String(l.status || '').toLowerCase();
-                const loc = String(l.docStatus || '').toLowerCase();
-                return isDocReq && rs === 'completed' && loc === 'in';
+                const rs = String(l.status || '').toLowerCase().trim();
+                const loc = String(l.docStatus || '').toLowerCase().trim();
+                
+                // Match "completed" or "done" (just in case)
+                const isDone = rs === 'completed' || rs === 'done';
+                
+                const match = isDocReq && isDone && loc === 'in';
+                if (!match && isDone && loc === 'in') {
+                    console.warn('⚠️ [Pick-up] Log is Done and In, but failed keyword check:', l.activity);
+                }
+                return match;
             });
 
+            // Store on instance so handlePickUpAll() can access them
+            this._pickableLogs = pickableLogs;
+
+            // Show/hide the Pick Up All button
+            const pickUpAllBtn = document.getElementById('pickUpAllBtn');
+            if (pickUpAllBtn) pickUpAllBtn.classList.toggle('hidden', pickableLogs.length < 2);
+
             if (pickableLogs.length === 0) {
+                console.log('❌ [Pick-up] No pickable logs found for student:', this.currentStudent.id);
                 list.innerHTML = `
                     <div class="text-center py-8">
                         <div class="bg-slate-100 dark:bg-slate-700 w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3 text-slate-400">
                             <i data-lucide="info" class="w-6 h-6"></i>
                         </div>
                         <p class="text-slate-500 dark:text-slate-400 font-bold text-sm">No recent document requests found to claim.</p>
-                        <button onclick="window.kioskManager.setPickupDocument(null, 'General Document')" class="mt-4 text-blue-500 text-xs font-black uppercase tracking-widest hover:underline">Claim General Document instead</button>
+                        <button id="tryRefreshPickupBtn" class="mt-2 text-blue-500 text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 mx-auto hover:underline">
+                            <i data-lucide="rotate-cw" class="w-3 h-3"></i> Try Refreshing
+                        </button>
+                        <div class="mt-6 pt-6 border-t border-slate-100 dark:border-slate-700">
+                            <button id="claimGeneralDocBtn" class="text-slate-400 text-[10px] font-black uppercase tracking-widest hover:text-blue-500 transition-colors">Claim General Document instead</button>
+                        </div>
                     </div>
                 `;
+                document.getElementById('tryRefreshPickupBtn')?.addEventListener('click', () => this.showPickupSelection());
+                document.getElementById('claimGeneralDocBtn')?.addEventListener('click', () => this.setPickupDocument(null, 'General Document'));
             } else {
-                list.innerHTML = pickableLogs.map(log => {
+                list.innerHTML = pickableLogs.map((log, idx) => {
                     const date = new Date(log.timeIn).toLocaleDateString([], { month: 'short', day: 'numeric' });
                     return `
                         <div class="pickup-item flex items-center gap-4 p-4 bg-white dark:bg-slate-800 rounded-2xl border-2 border-slate-100 dark:border-slate-700 hover:border-blue-400 dark:hover:border-blue-600 transition-all cursor-pointer group"
-                            onclick="window.kioskManager.setPickupDocument('${this.escape(log.id)}', '${this.escape(log.activity)}', this)">
+                            data-log-idx="${idx}">
                             <div class="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-900/20 text-blue-500 group-hover:bg-blue-500 group-hover:text-white flex items-center justify-center transition-all flex-shrink-0">
                                 <i data-lucide="file-text" class="w-5 h-5"></i>
                             </div>
                             <div class="flex-grow">
-                                <p class="font-black text-slate-800 dark:text-white text-sm leading-tight">${log.activity}</p>
-                                <p class="text-[9px] font-bold text-slate-500 dark:text-slate-400 mt-0.5">${date} • ${log.staff || 'Staff'}</p>
+                                <p class="font-black text-slate-800 dark:text-white text-sm leading-tight">${this.escape(log.activity)}</p>
+                                <p class="text-[9px] font-bold text-slate-500 dark:text-slate-400 mt-0.5">${date} • ${this.escape(log.staff || 'Staff')}</p>
                             </div>
                         </div>
                     `;
                 }).join('');
+
+                // Safe event delegation — avoids injecting JS into onclick attributes
+                list.querySelectorAll('.pickup-item').forEach(el => {
+                    el.addEventListener('click', () => {
+                        const idx = parseInt(el.dataset.logIdx, 10);
+                        const log = pickableLogs[idx];
+                        this.setPickupDocument(log.id, log.activity, el);
+                    });
+                });
             }
         } catch (e) {
             list.innerHTML = `<p class="text-red-500 text-center py-8 font-bold text-sm">Failed to load request history.</p>`;
@@ -1715,8 +1861,8 @@ class StudentKioskManager {
             element.classList.add('bg-blue-50', 'dark:bg-blue-900/20');
         }
 
-        const confirmBtn = document.getElementById('confirmPickupBtn');
-        if (confirmBtn) confirmBtn.disabled = false;
+        const nextBtn = document.getElementById('nextPickupBtn');
+        if (nextBtn) nextBtn.disabled = false;
     }
 }
 

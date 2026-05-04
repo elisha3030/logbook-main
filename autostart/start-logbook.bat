@@ -8,8 +8,8 @@ title Logbook Auto-Launcher
 cd /d "%~dp0.."
 
 echo [1/4] Checking for updates...
-:: Optional: Uncomment the next line if you want the app to auto-update via Git
-:: git pull
+:: Automatically update the app via Git
+git pull
 
 echo [2/4] Cleaning up old processes...
 :: Kill any process currently using port 3000 to prevent startup errors

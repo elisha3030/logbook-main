@@ -348,10 +348,13 @@ async function sendStudentNotification(targetEmail, studentName, activity, type 
         bodyText = `Your document ${isSubmission ? 'submission' : 'request'} for <strong>${activity}</strong> has been received by the <strong>${process.env.OFFICE_NAME || 'Engineering Office'}</strong>.`;
         instructions = isSubmission ? 'Your document is now awaiting staff review.' : 'Your document is now in the office queue.';
     } else if (type === 'processing') {
-        subject = '⚙️ Document Being Processed';
+        const isSubmission = isDocumentSubmissionActivity(activity);
+        subject = isSubmission ? '⚙️ Document Submission Being Processed' : '⚙️ Document Request Being Processed';
         headerText = 'Processing Started';
-        bodyText = `Your requested document (<strong>${activity}</strong>) is now being processed by <strong>${process.env.OFFICE_NAME || 'Engineering Office'}</strong> staff.`;
-        instructions = 'We will notify you again once it is ready for pick-up.';
+        bodyText = isSubmission 
+            ? `Your submitted document (<strong>${activity}</strong>) is now being processed by <strong>${process.env.OFFICE_NAME || 'Engineering Office'}</strong> staff.`
+            : `Your requested document (<strong>${activity}</strong>) is now being processed by <strong>${process.env.OFFICE_NAME || 'Engineering Office'}</strong> staff.`;
+        instructions = isSubmission ? 'We will notify you once it is completed.' : 'We will notify you again once it is ready for pick-up.';
     } else if (type === 'ready' || type === 'completed') {
         subject = '✅ Transaction Completed';
         headerText = 'Transaction Complete!';
@@ -398,9 +401,43 @@ async function sendStudentNotification(targetEmail, studentName, activity, type 
 
     try {
         await transporter.sendMail(mailOptions);
-        console.log(`📧 Email notification (${type}) sent to ${targetEmail}`);
+        console.log(`📧 Student notification (${type}) sent to ${targetEmail}`);
     } catch (error) {
-        console.error(`❌ Failed to send email notification (${type}):`, error);
+        console.error(`❌ Failed to send student notification (${type}):`, error);
+    }
+}
+
+async function sendFacultyNotification(studentName, activity, facultyEmail) {
+    // Only send if we have a target email and SMTP is configured
+    const targetEmail = facultyEmail || process.env.SMTP_USER; // Fallback to system email if no specific staff
+    if (!targetEmail || !process.env.SMTP_USER) return;
+
+    const subject = `📥 New Document Request: ${studentName}`;
+    const mailOptions = {
+        from: process.env.EMAIL_FROM || `"Logbook System" <${process.env.SMTP_USER}>`,
+        to: targetEmail,
+        subject: subject,
+        html: `
+            <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden;">
+                <div style="background-color: #f59e0b; color: white; padding: 24px; text-align: center;">
+                    <h1 style="margin: 0; font-size: 20px;">New Request Received</h1>
+                </div>
+                <div style="padding: 32px 24px; color: #1e293b;">
+                    <p>A new document request has been submitted by <strong>${studentName}</strong>.</p>
+                    <p><strong>Activity:</strong> ${activity}</p>
+                    <p style="margin-top: 24px;">Please log in to the Faculty Hub to start processing this request.</p>
+                    <hr style="border: 0; border-top: 1px solid #f1f5f9; margin: 24px 0;">
+                    <p style="font-size: 11px; color: #94a3b8; text-align: center;">Logbook Notification System</p>
+                </div>
+            </div>
+        `
+    };
+
+    try {
+        await transporter.sendMail(mailOptions);
+        console.log(`📧 Faculty notification sent to ${targetEmail}`);
+    } catch (error) {
+        console.warn(`❌ Failed to send faculty notification:`, error.message);
     }
 }
 
@@ -1071,6 +1108,8 @@ app.post('/api/register-log', async (req, res) => {
             if (targetEmail) {
                 sendStudentNotification(targetEmail, logData.studentName, logData.activity, 'received');
             }
+            // Notify faculty as well
+            sendFacultyNotification(logData.studentName, logData.activity, logData.staffEmail);
         }
     } catch (error) {
         console.error('Error registering student/log:', error);
@@ -1129,6 +1168,8 @@ app.post('/api/logs', async (req, res) => {
             if (targetEmail) {
                 sendStudentNotification(targetEmail, logData.studentName, logData.activity, 'received');
             }
+            // Notify faculty as well
+            sendFacultyNotification(logData.studentName, logData.activity, logData.staffEmail);
         }
     } catch (error) {
         console.error('Error logging visit locally:', error);
@@ -1181,23 +1222,24 @@ app.patch('/api/logs/:id', async (req, res) => {
             );
             if (!log) return res.status(404).json({ error: 'Log not found' });
 
-            if (isDocumentRequestActivity(log.activity)) {
-                // Document requests remain pending after the student leaves.
-                // Do NOT force docStatus to 'Out' (which the dashboard treats as done).
+            if (isDocumentRequestActivity(log.activity) || isDocumentSubmissionActivity(log.activity)) {
+                // Document requests/submissions remain in the queue (Pending/In Progress) after student leaves.
+                // We record the timeOut but do NOT change status or docStatus to 'Out'.
                 await localDb.run(
                     'UPDATE logs SET timeOut = ?, docStatus = COALESCE(docStatus, ?), synced = 0 WHERE id = ?',
                     [timeOut, 'In', id]
                 );
             } else if (isDocumentPickupActivity(log.activity)) {
-                // Document pick-up: this visit ends with the document released.
+                // Document pick-up: student leaves with the document, marking transaction complete.
                 await localDb.run(
                     "UPDATE logs SET timeOut = ?, status = 'completed', docStatus = 'Out', synced = 0 WHERE id = ?",
                     [timeOut, id]
                 );
             } else {
+                // Standard office visits (Inquiry, Consultation) end when the student leaves.
                 await localDb.run(
-                    'UPDATE logs SET timeOut = ?, docStatus = ?, synced = 0 WHERE id = ?',
-                    [timeOut, 'Out', id]
+                    "UPDATE logs SET timeOut = ?, status = 'completed', docStatus = 'Out', synced = 0 WHERE id = ?",
+                    [timeOut, id]
                 );
             }
         }
@@ -1266,9 +1308,9 @@ app.patch('/api/logs/:id/complete', async (req, res) => {
         const timeOut = new Date().toISOString();
 
         if (isDocumentRequestActivity(existing.activity)) {
-            // Completing a document request means "ready for pick-up"; location stays IN until claimed.
+            // Completing a document request means "ready for pick-up"; location MUST be IN for student to see it.
             await localDb.run(
-                "UPDATE logs SET status = 'completed', docStatus = COALESCE(docStatus, 'In'), timeOut = COALESCE(timeOut, ?), staff = CASE WHEN staff IS NOT NULL AND staff != '' THEN staff ELSE ? END, synced = 0 WHERE id = ?",
+                "UPDATE logs SET status = 'completed', docStatus = 'In', timeOut = COALESCE(timeOut, ?), staff = CASE WHEN staff IS NOT NULL AND staff != '' THEN staff ELSE ? END, synced = 0 WHERE id = ?",
                 [timeOut, staffName || 'Staff', id]
             );
         } else {
@@ -1316,9 +1358,9 @@ app.patch('/api/logs/:id/service-start', async (req, res) => {
         res.json({ success: true });
         syncToCloud();
 
-        // Send processing alert if it's a document request
+        // Send processing alert if it's a document request or submission
         const log = await localDb.get('SELECT * FROM logs WHERE id = ?', id);
-        if (log && isDocumentRequestActivity(log.activity)) {
+        if (log && (isDocumentRequestActivity(log.activity) || isDocumentSubmissionActivity(log.activity))) {
             let targetEmail = log.email;
             if (!targetEmail) {
                 const student = await localDb.get('SELECT email FROM students WHERE barcode = ? OR studentId = ?', [log.studentNumber, log.studentId]);
@@ -1437,32 +1479,17 @@ function requireAdmin(req, res, next) {
 function isDocumentRequestActivity(activity) {
     const a = String(activity || '').trim().toLowerCase();
     
-    // Standardized list of document request types
-    const documentTypes = [
-        'certificate of registration',
-        'certificate of enrollment',
-        'certificate of graduation',
-        'transcript of records',
-        'certification of grades',
-        'course description',
-        'syllabus',
-        'honorable dismissal',
-        'clearance',
-        'diploma',
-        'enrollment form'
-    ];
-
-    // Check if it's explicitly a "Document Request"
-    if (a.startsWith('document request')) return true;
-
-    // Check against standardized types
-    if (documentTypes.some(type => a.includes(type))) {
-        // Exclude pick-up activities
-        const excludeKeywords = ['pick-up', 'pickup', 'claim', 'release'];
-        return !excludeKeywords.some(k => a.includes(k));
-    }
+    const docKeywords = ['document', 'certificate', 'certification', 'transcript', 'tor', 'cor', 'cog', 'clearance', 'form', 'dismissal', 'diploma', 'id card', 'request', 'paper', 'application', 'permit', 'records', 'evaluation', 'eval', 'authentication', 'verification', 'grades', 'gwa', 'report'];
+    const excludeKeywords = ['inquiry', 'consultation', 'inquiries'];
     
-    return false;
+    // Explicit matches
+    if (a.startsWith('document request')) return true;
+    
+    // Keyword matches
+    const hasKeyword = docKeywords.some(k => a.includes(k));
+    const notExcluded = !excludeKeywords.some(k => a.includes(k));
+    
+    return hasKeyword && notExcluded;
 }
 
 function isDocumentSubmissionActivity(activity) {

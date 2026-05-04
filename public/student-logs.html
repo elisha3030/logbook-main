@@ -597,8 +597,12 @@
                 </div>
             </div>
 
-            <div class="p-6 border-t border-slate-100 dark:border-slate-700 flex justify-end bg-white dark:bg-slate-800">
+            <div class="p-6 border-t border-slate-100 dark:border-slate-700 flex items-center justify-between gap-3 bg-white dark:bg-slate-800">
                 <button id="closeMultiSessionModalBtn" class="bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 font-bold px-8 py-3 rounded-2xl hover:-translate-y-1 transition-all active:scale-95">Cancel</button>
+                <button id="logOutAllBtn" class="flex items-center gap-2 bg-red-500 hover:bg-red-600 text-white font-black px-8 py-3 rounded-2xl shadow-lg shadow-red-500/20 hover:-translate-y-1 transition-all active:scale-95 text-sm">
+                    <i data-lucide="log-out" class="w-4 h-4"></i>
+                    Log Out All
+                </button>
             </div>
         </div>
     </div>
@@ -625,27 +629,67 @@
     <!-- Document Pick-up Confirmation Modal -->
     <div id="pickupConfirmationModal" class="hidden fixed inset-0 z-[130] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm animate-in fade-in duration-300">
         <div class="relative bg-white dark:bg-slate-800 rounded-[2.5rem] shadow-2xl max-w-lg w-full overflow-hidden flex flex-col animate-in zoom-in-95 duration-300">
-            <div class="p-8 text-center bg-blue-50/50 dark:bg-blue-900/10 border-b border-slate-100 dark:border-slate-700">
-                <div class="w-16 h-16 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-600 mx-auto flex items-center justify-center mb-4">
-                    <i data-lucide="package-search" class="w-8 h-8"></i>
+            <!-- Step 1: Selection -->
+            <div id="pickupSelectionView">
+                <div class="p-8 text-center bg-blue-50/50 dark:bg-blue-900/10 border-b border-slate-100 dark:border-slate-700">
+                    <div class="w-16 h-16 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-600 mx-auto flex items-center justify-center mb-4">
+                        <i data-lucide="package-search" class="w-8 h-8"></i>
+                    </div>
+                    <h3 class="text-2xl font-black text-slate-800 dark:text-white mb-2">Document Pick-up</h3>
+                    <p class="text-slate-500 dark:text-slate-400 font-medium text-sm">Select the document you are claiming today:</p>
                 </div>
-                <h3 class="text-2xl font-black text-slate-800 dark:text-white mb-2">Document Pick-up</h3>
-                <p class="text-slate-500 dark:text-slate-400 font-medium text-sm">Select the document you are claiming today:</p>
-            </div>
-            
-            <div class="p-6 overflow-y-auto max-h-[40vh] bg-slate-50/50 dark:bg-slate-900/20">
-                <div id="pickupList" class="space-y-3">
-                    <!-- Documents injected here via JS -->
+                
+                <div class="p-6 overflow-y-auto max-h-[40vh] bg-slate-50/50 dark:bg-slate-900/20">
+                    <div id="pickupList" class="space-y-3">
+                        <!-- Documents injected here via JS -->
+                    </div>
+                </div>
+
+                <div class="p-6 border-t border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-800 space-y-3">
+                    <!-- Pick Up All button — shown by JS only when 2+ docs are ready -->
+                    <button id="pickUpAllBtn" class="hidden w-full flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white font-black py-4 rounded-2xl shadow-lg shadow-emerald-500/20 transition-all active:scale-95 text-xs uppercase tracking-widest">
+                        <i data-lucide="package-check" class="w-4 h-4"></i>
+                        Pick Up All Documents
+                    </button>
+                    <div class="flex gap-4">
+                        <button id="cancelPickupBtn" class="flex-1 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 font-black py-4 rounded-2xl transition-all active:scale-95 text-xs uppercase tracking-widest">
+                            Cancel
+                        </button>
+                        <button id="nextPickupBtn" disabled class="flex-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-black py-4 rounded-2xl shadow-lg shadow-blue-500/20 transition-all active:scale-95 text-xs uppercase tracking-widest">
+                            Next
+                        </button>
+                    </div>
                 </div>
             </div>
 
-            <div class="p-8 flex gap-4 bg-white dark:bg-slate-800 border-t border-slate-100 dark:border-slate-700">
-                <button id="cancelPickupBtn" class="flex-1 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 font-black py-4 rounded-2xl transition-all active:scale-95 text-xs uppercase tracking-widest">
-                    Cancel
-                </button>
-                <button id="confirmPickupBtn" disabled class="flex-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-black py-4 rounded-2xl shadow-lg shadow-blue-500/20 transition-all active:scale-95 text-xs uppercase tracking-widest">
-                    Confirm Claim
-                </button>
+            <!-- Step 2: Final Confirmation -->
+            <div id="pickupConfirmView" class="hidden">
+                <div class="p-8 text-center bg-emerald-50/50 dark:bg-emerald-900/10 border-b border-slate-100 dark:border-slate-700">
+                    <div class="w-16 h-16 rounded-full bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 mx-auto flex items-center justify-center mb-4">
+                        <i data-lucide="check-circle-2" class="w-8 h-8"></i>
+                    </div>
+                    <h3 class="text-2xl font-black text-slate-800 dark:text-white mb-2">Verify Document</h3>
+                    <p class="text-slate-500 dark:text-slate-400 font-medium text-sm">Please verify if this is the correct document:</p>
+                </div>
+
+                <div class="p-10 text-center space-y-4">
+                    <div class="p-6 bg-slate-50 dark:bg-slate-900/40 rounded-[2rem] border-2 border-emerald-500/20">
+                        <p id="confirmPickupDocTitle" class="text-xl font-black text-slate-900 dark:text-white leading-tight"></p>
+                        <p class="text-xs font-bold text-slate-400 mt-1 uppercase tracking-widest">Ready for Pick-up</p>
+                    </div>
+                    <p class="text-sm font-bold text-slate-500 dark:text-slate-400 px-4">
+                        By clicking confirm, you acknowledge that you have received the correct document from the staff.
+                    </p>
+                </div>
+
+                <div class="p-8 flex gap-4 bg-white dark:bg-slate-800 border-t border-slate-100 dark:border-slate-700">
+                    <button id="backToSelectionBtn" class="flex-1 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 font-black py-4 rounded-2xl transition-all active:scale-95 text-xs uppercase tracking-widest">
+                        Back
+                    </button>
+                    <button id="confirmPickupBtn" class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-black py-4 rounded-2xl shadow-lg shadow-emerald-500/20 transition-all active:scale-95 text-xs uppercase tracking-widest">
+                        Confirm Claim
+                    </button>
+                </div>
             </div>
         </div>
     </div>
@@ -660,7 +704,7 @@
     </script>
     <script type="module" src="js/firebase.js"></script>
     <script type="module" src="js/auth.js"></script>
-    <script type="module" src="js/student-logs.js?v=6"></script>
+    <script type="module" src="js/student-logs.js?v=14"></script>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             if (window.lucide) window.lucide.createIcons();

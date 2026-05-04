@@ -346,8 +346,8 @@ async function fetchQueue() {
             if (normalize(l.staff) !== normalize(staffName)) return false;
 
             const act = String(l.activity || '').toLowerCase();
-            const docKeywords = ['document', 'certificate', 'certification', 'transcript', 'tor', 'cor', 'cog', 'clearance', 'form', 'dismissal', 'diploma', 'id card', 'request', 'paper'];
-            const excludeKeywords = ['pick-up', 'pickup', 'inquiry', 'consultation', 'inquiries'];
+            const docKeywords = ['document', 'certificate', 'certification', 'transcript', 'tor', 'cor', 'cog', 'clearance', 'form', 'dismissal', 'diploma', 'id card', 'request', 'paper', 'application', 'permit', 'records', 'evaluation', 'eval', 'authentication', 'verification', 'grades', 'gwa'];
+            const excludeKeywords = ['pick-up', 'pickup', 'claim', 'release', 'inquiry', 'consultation', 'inquiries'];
             const isDocRequest = act.startsWith('document request') || (docKeywords.some(k => act.includes(k)) && !excludeKeywords.some(k => act.includes(k)));
             
             const rs = String(l.status || '').toLowerCase();
@@ -388,10 +388,16 @@ async function renderQueue() {
 
     // Update stats
     const statPending = document.getElementById('statPending');
+    const statInProgress = document.getElementById('statInProgress');
     const statCompleted = document.getElementById('statCompleted');
     const statTotal = document.getElementById('statTotal');
     
-    if (statPending) statPending.textContent = pending.length;
+    // Calculate precise sub-stats for the header
+    const pendingCount = pending.filter(l => String(l.status || '').toLowerCase() !== 'in-service').length;
+    const inProgressCount = pending.filter(l => String(l.status || '').toLowerCase() === 'in-service').length;
+
+    if (statPending) statPending.textContent = pendingCount;
+    if (statInProgress) statInProgress.textContent = inProgressCount;
     if (statCompleted) statCompleted.textContent = completed.length;
     if (statTotal) statTotal.textContent = all.length;
 
@@ -505,7 +511,11 @@ async function renderQueue() {
 
     tbody.innerHTML = sorted.map(log => {
         const actLower = String(log.activity || '').toLowerCase();
-        const isDocRequest = actLower.startsWith('document request');
+        
+        // Use a robust keyword-based check consistent with fetchQueue and server.js
+        const docKeywords = ['document', 'certificate', 'certification', 'transcript', 'tor', 'cor', 'cog', 'clearance', 'form', 'dismissal', 'diploma', 'id card', 'request', 'paper', 'application', 'permit', 'records', 'evaluation', 'eval', 'authentication', 'verification', 'grades', 'gwa'];
+        const excludeKeywords = ['pick-up', 'pickup', 'claim', 'release', 'inquiry', 'consultation', 'inquiries'];
+        const isDocRequest = actLower.startsWith('document request') || (docKeywords.some(k => actLower.includes(k)) && !excludeKeywords.some(k => actLower.includes(k)));
 
         const rs = String(log.status || 'pending').toLowerCase();
 
@@ -520,11 +530,11 @@ async function renderQueue() {
         let statusBadge = '';
         if (isPending) {
             statusBadge = `<span class="inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 px-3 py-1.5 rounded-full">
-                   <span class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>Waiting
+                   <span class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>Pending
                </span>`;
         } else if (isInService) {
             statusBadge = `<span class="inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 px-3 py-1.5 rounded-full">
-                   <i data-lucide="loader" class="w-3 h-3 animate-spin text-blue-500"></i>In Service
+                   <i data-lucide="loader" class="w-3 h-3 animate-spin text-blue-500"></i>In Progress
                </span>`;
         } else {
             statusBadge = `<span class="inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 px-3 py-1.5 rounded-full">
@@ -1619,18 +1629,18 @@ window.viewTransactionDetails = function(logId) {
                             let colorClass = 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/20 dark:text-amber-400 dark:border-amber-800/50';
                             let icon = '<i data-lucide="clock" class="w-4 h-4"></i>';
                             let dot = '<div class="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></div>';
-                            let statusText = log.status || 'Waiting';
+                            let statusText = log.status || 'Pending';
 
                             if (log.status?.toLowerCase() === 'completed') {
                                 colorClass = 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-400 dark:border-emerald-800/50';
                                 icon = '<i data-lucide="check-circle" class="w-4 h-4"></i>';
                                 dot = '<div class="w-2 h-2 rounded-full bg-emerald-500"></div>';
-                                statusText = 'Completed';
+                                statusText = 'Done';
                             } else if (log.status?.toLowerCase() === 'in-service') {
                                 colorClass = 'bg-blue-600 text-white border-blue-700 shadow-lg shadow-blue-500/20';
                                 icon = '<i data-lucide="loader" class="w-4 h-4 animate-spin"></i>';
                                 dot = '<div class="w-2 h-2 rounded-full bg-white animate-ping"></div>';
-                                statusText = 'In Service';
+                                statusText = 'In Progress';
                             }
 
                             return `
