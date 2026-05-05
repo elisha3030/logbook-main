@@ -109,6 +109,24 @@ class LogsManager {
                 // Update document title
                 document.title = `${settings.officeName} - Dashboard`;
             }
+
+            // Populate faculty filter for report generation from the unified API
+            try {
+                const res = await fetch('/api/faculty');
+                const facultyList = await res.json();
+                const reportFacultyFilter = document.getElementById('reportFacultyFilter');
+                if (reportFacultyFilter && Array.isArray(facultyList)) {
+                    // Clear existing except "All Faculty"
+                    reportFacultyFilter.innerHTML = '<option value="">All Faculty</option>';
+                    facultyList.forEach(fac => {
+                        const opt = document.createElement('option');
+                        const name = typeof fac === 'string' ? fac : fac.name;
+                        opt.value = name;
+                        opt.textContent = name;
+                        reportFacultyFilter.appendChild(opt);
+                    });
+                }
+            } catch (e) { console.error('Failed to populate report faculty filter:', e); }
         } catch (e) { /* proceed with defaults */ }
 
         // Only initialize if we're on the dashboard page
@@ -1560,7 +1578,10 @@ class LogsManager {
         const reportActivityFilter = document.getElementById('reportActivityFilter');
         const activityValue = reportActivityFilter ? reportActivityFilter.value : '';
 
-        if (timeValue !== 'all' || activityValue) {
+        const reportFacultyFilter = document.getElementById('reportFacultyFilter');
+        const facultyValue = reportFacultyFilter ? reportFacultyFilter.value : '';
+
+        if (timeValue !== 'all' || activityValue || facultyValue) {
             reportEntries = this.entries.filter(entry => {
                 let matchesTime = true;
                 const entryDate = new Date(entry.timestamp);
@@ -1580,7 +1601,12 @@ class LogsManager {
                     matchesActivity = (entry.activity || '').toLowerCase().includes(activityValue.toLowerCase());
                 }
 
-                return matchesTime && matchesActivity;
+                let matchesFaculty = true;
+                if (facultyValue) {
+                    matchesFaculty = (entry.staff || '') === facultyValue;
+                }
+
+                return matchesTime && matchesActivity && matchesFaculty;
             });
 
             if (timeValue === 'today') timeframeText = 'Daily Report (Today)';
@@ -1590,6 +1616,10 @@ class LogsManager {
             if (activityValue) {
                 timeframeText += ` - ${activityValue}`;
                 reportTitle = `${activityValue} Report`;
+            }
+            if (facultyValue) {
+                timeframeText += ` (Faculty: ${facultyValue})`;
+                reportTitle += ` - ${facultyValue}`;
             }
         }
 

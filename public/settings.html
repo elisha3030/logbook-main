@@ -640,6 +640,29 @@
             <p class="toast-message text-sm font-bold leading-snug"></p>
         </div>
     </template>
+    
+    <!-- Custom Confirm Modal -->
+    <div id="confirmModal" class="fixed inset-0 z-[1000] hidden items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+        <div class="bg-white dark:bg-slate-800 rounded-[2.5rem] shadow-2xl border border-slate-200 dark:border-slate-700 w-full max-w-sm overflow-hidden animate-in zoom-in duration-200">
+            <div class="p-8 text-center">
+                <div class="w-16 h-16 bg-red-50 dark:bg-red-900/20 rounded-full flex items-center justify-center mx-auto mb-6">
+                    <i data-lucide="alert-triangle" class="w-8 h-8 text-red-500"></i>
+                </div>
+                <h3 id="confirmTitle" class="text-xl font-black text-slate-900 dark:text-white mb-2">Are you sure?</h3>
+                <p id="confirmMessage" class="text-sm font-semibold text-slate-500 dark:text-slate-400 leading-relaxed px-4">
+                    This action cannot be undone.
+                </p>
+            </div>
+            <div class="p-6 bg-slate-50 dark:bg-slate-700/50 flex gap-3">
+                <button id="confirmCancelBtn" class="flex-1 px-6 py-3.5 rounded-2xl text-sm font-black text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-600 transition-all">
+                    Cancel
+                </button>
+                <button id="confirmConfirmBtn" class="flex-1 px-6 py-3.5 rounded-2xl bg-red-600 hover:bg-red-700 text-white text-sm font-black shadow-lg shadow-red-900/20 transition-all active:scale-95">
+                    Confirm
+                </button>
+            </div>
+        </div>
+    </div>
 
     <script src="js/navigation.js"></script>
 
@@ -747,6 +770,10 @@
             container.querySelectorAll('.remove-faculty-btn').forEach(btn => {
                 btn.addEventListener('click', async () => {
                     const idx = parseInt(btn.dataset.fi);
+                    const name = _facultyList[idx];
+                    const ok = await window.settingsManager.showConfirm('Remove Faculty Hub', `Remove ${name} from the Faculty Hub list?`);
+                    if (!ok) return;
+                    
                     _facultyList.splice(idx, 1);
                     renderFacultyList();
                     await saveFaculty();

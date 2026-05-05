@@ -247,7 +247,7 @@ async function logOutStaff(logId) {
         const res = await fetch(`/api/logs/${logId}/complete`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ staffName: staffName || 'Dr. Mariciel Teogangco' })
+            body: JSON.stringify({ staffName: staffName || 'Staff' })
         });
         
         if (res.ok) {
@@ -281,24 +281,10 @@ async function renderFacultySelection() {
         const res = await fetch('/api/faculty');
         let faculties = await res.json();
 
-        // Always include hard-coded faculty
-        const hardCoded = [
-            { name: 'Mr. Alvin Destajo', position: 'Faculty' },
-            { name: 'Dr. Mariciel Teogangco', position: 'Faculty' },
-            { name: 'Ms. Arlene Evangelista', position: 'Faculty' }
-        ];
-
-        // Filter out any duplicates if they exist in the API
-        const existingNames = new Set(faculties.map(f => normalize(f.name)));
-        const finalFaculties = [
-            ...hardCoded.filter(h => !existingNames.has(normalize(h.name))),
-            ...faculties
-        ];
-
-        if (finalFaculties.length === 0) {
+        if (faculties.length === 0) {
             grid.innerHTML = '<p class="text-slate-400 font-bold col-span-full py-10 text-center">No faculty members found. Please check system settings.</p>';
         } else {
-            grid.innerHTML = finalFaculties.map(f => `
+            grid.innerHTML = faculties.map(f => `
                 <a href="faculty.html?staff=${encodeURIComponent(f.name)}"
                    class="group bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-200 dark:border-slate-700 shadow-xl shadow-slate-200/50 hover:border-blue-500 hover:-translate-y-1 transition-all flex flex-col items-center gap-5 text-center w-full max-w-sm">
                     <div class="w-16 h-16 rounded-full overflow-hidden border-2 border-slate-100 flex-shrink-0">

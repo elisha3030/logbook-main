@@ -67,9 +67,12 @@ class ScannerManager {
                 try {
                     const res = await fetch('/api/faculty');
                     const faculties = await res.json();
-                    if (faculties.length > 0) {
+                    if (Array.isArray(faculties) && faculties.length > 0) {
                         staffSelect.innerHTML = '<option value="">Select Staff</option>' +
                             faculties.map(f => `<option value="${f.name}">${f.name}</option>`).join('');
+                        
+                        // Re-initialize grid after populating
+                        this._createCardGridFromSelect('logStaff', 'logStaffGrid', 'staff-card');
                     }
                 } catch (e) {
                     console.warn('⚠️ Could not load faculty list:', e.message);
@@ -154,6 +157,42 @@ class ScannerManager {
             toast.classList.add('fade-out');
             setTimeout(() => toast.remove(), 400);
         }, 4000);
+    }
+
+    showConfirm(title, message) {
+        return new Promise((resolve) => {
+            const modal = document.getElementById('confirmModal');
+            const titleEl = document.getElementById('confirmTitle');
+            const messageEl = document.getElementById('confirmMessage');
+            const confirmBtn = document.getElementById('confirmConfirmBtn');
+            const cancelBtn = document.getElementById('confirmCancelBtn');
+
+            if (!modal || !confirmBtn || !cancelBtn) {
+                resolve(confirm(message));
+                return;
+            }
+
+            titleEl.textContent = title || 'Are you sure?';
+            messageEl.textContent = message || 'This action cannot be undone.';
+            
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            if (window.lucide) lucide.createIcons();
+
+            const cleanup = (result) => {
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+                confirmBtn.removeEventListener('click', onConfirm);
+                cancelBtn.removeEventListener('click', onCancel);
+                resolve(result);
+            };
+
+            const onConfirm = () => cleanup(true);
+            const onCancel = () => cleanup(false);
+
+            confirmBtn.addEventListener('click', onConfirm);
+            cancelBtn.addEventListener('click', onCancel);
+        });
     }
 
     _createCardGridFromSelect(selectId, gridContainerId, cardClass) {
@@ -1026,7 +1065,7 @@ class ScannerManager {
     }
 
     async timeOutAll() {
-        const confirmed = confirm('Log out ALL currently active sessions?\nThis will close every open visit log.');
+        const confirmed = await this.showConfirm('Bulk Check-out', 'Log out ALL currently active sessions?\nThis will close every open visit log.');
         if (!confirmed) return;
 
         const btn = document.getElementById('timeOutAllBtn');

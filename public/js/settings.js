@@ -90,7 +90,7 @@ export default class SettingsManager {
                 btn.addEventListener('click', async () => {
                     const email = btn.getAttribute('data-remove-email');
                     if (!email) return;
-                    const ok = confirm(`Remove faculty account ${email}? This cannot be undone.`);
+                    const ok = await this.showConfirm('Remove Account', `Remove faculty account ${email}? This cannot be undone.`);
                     if (!ok) return;
                     await this.deleteLocalAccount(email);
                 });
@@ -183,6 +183,42 @@ export default class SettingsManager {
         container.appendChild(toast);
         lucide.createIcons();
         setTimeout(() => { toast.classList.add('fade-out'); setTimeout(() => toast.remove(), 400); }, 4000);
+    }
+
+    showConfirm(title, message) {
+        return new Promise((resolve) => {
+            const modal = document.getElementById('confirmModal');
+            const titleEl = document.getElementById('confirmTitle');
+            const messageEl = document.getElementById('confirmMessage');
+            const confirmBtn = document.getElementById('confirmConfirmBtn');
+            const cancelBtn = document.getElementById('confirmCancelBtn');
+
+            if (!modal || !confirmBtn || !cancelBtn) {
+                resolve(confirm(message));
+                return;
+            }
+
+            titleEl.textContent = title || 'Are you sure?';
+            messageEl.textContent = message || 'This action cannot be undone.';
+            
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            lucide.createIcons();
+
+            const cleanup = (result) => {
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+                confirmBtn.removeEventListener('click', onConfirm);
+                cancelBtn.removeEventListener('click', onCancel);
+                resolve(result);
+            };
+
+            const onConfirm = () => cleanup(true);
+            const onCancel = () => cleanup(false);
+
+            confirmBtn.addEventListener('click', onConfirm);
+            cancelBtn.addEventListener('click', onCancel);
+        });
     }
 
     // ----------------------------------------------------------------
@@ -542,9 +578,11 @@ export default class SettingsManager {
 
         // 4. Delete Activity
         container.querySelectorAll('[data-delete-index]').forEach(btn => {
-            btn.addEventListener('click', (e) => {
+            btn.addEventListener('click', async (e) => {
                 const idx = parseInt(e.currentTarget.dataset.deleteIndex);
-                if (confirm(`Delete activity "${this.activities[idx].name}" and all its options?`)) {
+                const name = this.activities[idx].name;
+                const ok = await this.showConfirm('Delete Activity', `Delete activity "${name}" and all its options?`);
+                if (ok) {
                     this.activities.splice(idx, 1);
                     this.renderActivities();
                 }
@@ -718,7 +756,7 @@ export default class SettingsManager {
     // DB Maintenance
     // ----------------------------------------------------------------
     async runMaintenance() {
-        const confirmed = confirm('This will permanently delete all locally cached logs that have been synced to the cloud. This cannot be undone. Continue?');
+        const confirmed = await this.showConfirm('Maintenance', 'This will permanently delete all locally cached logs that have been synced to the cloud. This cannot be undone. Continue?');
         if (!confirmed) return;
         try {
             const res = await fetch('/api/db-maintenance', {
@@ -734,7 +772,7 @@ export default class SettingsManager {
     }
 
     async purgeStudentCache() {
-        const confirmed = confirm('This will WIPE the entire local student directory and download a fresh copy from the cloud. This solves issues where old Student IDs are still working. \n\nContinue?');
+        const confirmed = await this.showConfirm('Purge Cache', 'This will WIPE the entire local student directory and download a fresh copy from the cloud. This solves issues where old Student IDs are still working. \n\nContinue?');
         if (!confirmed) return;
 
         const btn = document.getElementById('purgeCacheBtn');

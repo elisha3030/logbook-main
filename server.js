@@ -1594,7 +1594,6 @@ app.get('/api/settings/staff', requireAdmin, async (req, res) => {
 // GET combined faculty list for student portal
 app.get('/api/faculty', async (req, res) => {
     try {
-        // Fetch ALL settings just like /api/settings does (this is known to work for the sidebar)
         const rows = await localDb.all('SELECT key, value FROM settings');
         const settings = {};
         for (const row of rows) {
@@ -1602,7 +1601,6 @@ app.get('/api/faculty', async (req, res) => {
         }
 
         let faculty = [];
-        // Support both 'faculty' and 'facultyList'
         const rawFaculty = settings.faculty || settings.facultyList;
 
         if (rawFaculty) {
@@ -1615,46 +1613,34 @@ app.get('/api/faculty', async (req, res) => {
                         }
                         return f;
                     });
-                } else if (typeof parsed === 'object' && parsed !== null) {
-                    faculty = [parsed];
                 }
             } catch (e) {
-                // Not JSON - handle as plain string if possible
                 if (typeof rawFaculty === 'string' && rawFaculty.trim()) {
                     faculty = [{ name: rawFaculty.trim(), position: 'Faculty', photoURL: null }];
                 }
             }
         }
 
-        // Fallback to admins if we have no dynamic faculty yet
-        if (faculty.length === 0) {
-            const admins = await localDb.all('SELECT displayName as name, "Administrator" as position FROM admin_users');
-            faculty = admins.map(a => ({
-                name: a.name || 'Administrator',
-                position: a.position || 'Admin',
-                photoURL: null
-            }));
-        }
+        // Always include admins/staff from the accounts table
+        const admins = await localDb.all('SELECT displayName as name, role as position FROM admin_users');
+        const adminFaculty = admins.map(a => ({
+            name: a.name || 'Staff',
+            position: a.position === 'superadmin' ? 'Administrator' : (a.position === 'admin' ? 'Administrator' : 'Faculty Staff'),
+            photoURL: null
+        }));
 
-        // --- HARD-CODED FACULTY (Hybrid Approach) ---
-        const hardCodedFaculty = [
-            { name: 'Mr. Alvin Destajo', position: 'Engineering Staff', photoURL: null },
-            { name: 'Dr. Mariciel Teogangco', position: 'Engineering Staff', photoURL: null },
-            { name: 'Ms. Arlene Evangelista', position: 'Engineering Staff', photoURL: null }
-        ];
-
-        // Combine hard-coded with dynamic results, filtering out duplicates by name
-        const combinedFaculty = [...hardCodedFaculty];
-        faculty.forEach(f => {
-            if (!combinedFaculty.some(cf => cf.name === f.name)) {
-                combinedFaculty.push(f);
+        // Combine and filter duplicates by name
+        const combined = [...faculty];
+        adminFaculty.forEach(af => {
+            if (!combined.some(f => f.name.toLowerCase() === af.name.toLowerCase())) {
+                combined.push(af);
             }
         });
 
-        res.json(combinedFaculty);
+        res.json(combined);
     } catch (error) {
-        console.error('Error fetching faculty list:', error);
-        res.status(500).json({ error: 'Failed to fetch faculty list' });
+        console.error('Error in /api/faculty:', error);
+        res.status(500).json({ error: 'Failed to fetch faculty' });
     }
 });
 
@@ -1687,16 +1673,11 @@ app.get('/api/staff-stats', requireAdmin, async (req, res) => {
             } catch (_) {}
         }
 
-        const hardCoded = ['Mr. Alvin Destajo', 'Dr. Mariciel Teogangco', 'Ms. Arlene Evangelista'];
-        
-        // If still empty, fall back to admins (same as /api/faculty)
-        let fallbackNames = [];
-        if (dynamicFaculty.length === 0) {
-            const adminRows = await localDb.all('SELECT displayName FROM admin_users');
-            fallbackNames = adminRows.map(a => a.displayName).filter(Boolean);
-        }
+        // Include admins from accounts table
+        const adminRows = await localDb.all('SELECT displayName FROM admin_users');
+        const adminNames = adminRows.map(a => a.displayName).filter(Boolean);
 
-        const allNames = [...new Set([...hardCoded, ...dynamicFaculty, ...fallbackNames])];
+        const allNames = [...new Set([...dynamicFaculty, ...adminNames])];
 
         // For each staff name, aggregate from logs
         const statsPromises = allNames.map(async name => {
