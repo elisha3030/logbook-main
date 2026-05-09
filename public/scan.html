@@ -398,6 +398,23 @@
                                             <option value="Other Document">Other (Specify in notes)</option>
                                         </select>
                                         <div id="documentTypeGrid" class="grid grid-cols-2 gap-2 mt-2"></div>
+
+                                        <!-- PDF Upload Field (New) -->
+                                        <div id="pdfUploadContainer" class="mt-6 p-6 rounded-3xl bg-slate-50 dark:bg-slate-900/50 border-2 border-dashed border-slate-200 dark:border-slate-700 transition-all hover:border-blue-500 group">
+                                            <label class="block text-sm font-black text-slate-900 dark:text-white mb-4 flex items-center gap-2">
+                                                <i data-lucide="file-up" class="w-4 h-4 text-blue-500"></i>
+                                                Attach PDF Document (Optional)
+                                            </label>
+                                            <div class="flex items-center gap-4">
+                                                <label for="studentPdfUpload" class="flex-shrink-0 cursor-pointer bg-white dark:bg-slate-800 px-6 py-3 rounded-2xl border border-slate-200 dark:border-slate-700 font-bold text-xs hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-all flex items-center gap-2 shadow-sm">
+                                                    <i data-lucide="upload" class="w-4 h-4"></i>
+                                                    Choose File
+                                                </label>
+                                                <input type="file" id="studentPdfUpload" accept="application/pdf" class="hidden">
+                                                <div id="pdfFileName" class="text-xs font-bold text-slate-400 italic truncate">No file selected...</div>
+                                            </div>
+                                            <p class="text-[10px] text-slate-400 mt-4 font-medium leading-relaxed">Please ensure the document is clear and in PDF format for the faculty to sign.</p>
+                                        </div>
                                     </div>
                                     <!-- Dynamic Other Activity Input -->
                                     <div id="otherActivityContainer"

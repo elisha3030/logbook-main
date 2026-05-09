@@ -9,11 +9,23 @@
     <script src="/vendor/tailwindcss.js"></script>
     <script src="/js/lucide.js"></script>
     <link rel="stylesheet" href="css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/signature_pad@4.1.7/dist/signature_pad.umd.min.js"></script>
+    <style>
+        .staff-card-stat { transition: all 0.2s ease; }
+        .staff-card-stat:hover { transform: translateY(-2px); }
+        .live-pulse {
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: .5; }
+        }
+    </style>
 </head>
-<body class="bg-white text-slate-900 dark:bg-slate-900 dark:text-white font-sans min-h-screen flex">
+<body class="bg-[#F8FAFC] text-slate-900 dark:bg-slate-900 dark:text-white font-sans min-h-screen flex">
 
     <!-- Sidebar -->
-    <aside class="sidebar bg-slate-900 h-screen fixed left-0 top-0 text-slate-400 flex flex-col border-r border-slate-800 shadow-2xl z-50">
+    <aside class="sidebar bg-[#1E293B] h-screen fixed left-0 top-0 text-slate-400 flex flex-col border-r border-slate-800 shadow-2xl z-50">
         <div class="p-6 border-b border-slate-800 mb-6">
             <a href="dashboard.html" class="flex items-center gap-3">
                 <div class="bg-blue-600 p-2 rounded-xl text-white"><i data-lucide="book-open" class="w-6 h-6"></i></div>
@@ -35,109 +47,98 @@
             <a href="students.html" class="flex items-center gap-3 px-4 py-3 rounded-xl text-slate-200 hover:bg-slate-800 hover:text-white transition-all font-semibold group">
                 <i data-lucide="users" class="w-5 h-5 group-hover:text-amber-400 transition-colors"></i>Student Records
             </a>
-            <a href="staff-monitor.html" class="flex items-center gap-3 px-4 py-3 rounded-xl bg-violet-600 text-white font-bold group shadow-lg shadow-violet-900/20">
+            <a href="staff-monitor.html" class="flex items-center gap-3 px-4 py-3 rounded-xl bg-[#8B5CF6] text-white font-bold group shadow-lg shadow-violet-900/20">
                 <i data-lucide="shield-check" class="w-5 h-5"></i>Staff Monitor
             </a>
             <a href="settings.html" class="flex items-center gap-3 px-4 py-3 rounded-xl text-slate-200 hover:bg-slate-800 hover:text-white transition-all font-semibold group">
                 <i data-lucide="settings-2" class="w-5 h-5 group-hover:text-violet-400 transition-colors"></i>System Settings
             </a>
-            <div id="facultyHubsSection"></div>
         </nav>
         <div class="p-6 border-t border-slate-800 flex flex-col gap-4">
             <a href="index.html" class="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-black text-[10px] uppercase tracking-widest shadow-md shadow-emerald-500/30 hover:-translate-y-0.5 transition-all">
                 <i data-lucide="monitor-stop" class="w-4 h-4"></i>Go back to portal
             </a>
-            <div class="bg-slate-800/50 rounded-2xl p-4 flex items-center justify-between">
-                <div class="flex items-center gap-3 overflow-hidden">
-                    <div class="w-8 h-8 rounded-full bg-violet-500 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">S</div>
-                    <div class="overflow-hidden">
-                        <p class="text-xs font-bold text-white truncate user-email">Admin</p>
-                        <p class="text-[10px] text-slate-500">Admin Access</p>
-                    </div>
-                </div>
-                <button id="logoutBtn" class="text-slate-500 hover:text-red-400 transition-colors"><i data-lucide="log-out" class="w-4 h-4"></i></button>
-            </div>
         </div>
     </aside>
 
-    <!-- Main -->
-    <main class="main-content flex-grow flex flex-col min-h-screen">
-
-        <!-- Top Bar -->
-        <header class="h-20 bg-white border-b border-slate-200 dark:bg-slate-800 dark:border-slate-700 sticky top-0 z-40 px-8 flex items-center justify-between">
+    <!-- Main Content -->
+    <main class="main-content flex-grow flex flex-col min-h-screen ml-0 lg:ml-[260px]">
+        
+        <!-- Top Bar / Header -->
+        <header class="h-24 bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between px-8 sticky top-0 z-40">
             <div class="flex items-center gap-4">
-                <div class="w-10 h-10 rounded-xl bg-violet-100 dark:bg-violet-900/30 text-violet-600 flex items-center justify-center">
-                    <i data-lucide="shield-check" class="w-5 h-5"></i>
+                <div class="w-12 h-12 rounded-2xl bg-violet-50 dark:bg-violet-900/20 text-violet-600 flex items-center justify-center border border-violet-100 dark:border-violet-800/50">
+                    <i data-lucide="shield-check" class="w-6 h-6"></i>
                 </div>
                 <div>
-                    <h1 class="text-lg font-black text-slate-900 dark:text-white">Staff Monitor</h1>
-                    <p class="text-xs text-slate-500 dark:text-slate-400">Transaction performance per staff member</p>
+                    <h1 class="text-xl font-black text-slate-800 dark:text-white">Staff Monitor</h1>
+                    <p class="text-xs text-slate-500 font-medium">Transaction performance per staff member</p>
                 </div>
             </div>
-            <div class="flex items-center gap-3">
-                <!-- Date filter -->
-                <div class="flex items-center gap-2">
-                    <input type="date" id="startDate" class="text-xs px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-violet-400">
-                    <span class="text-xs text-slate-400">to</span>
-                    <input type="date" id="endDate" class="text-xs px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-violet-400">
-                    <button id="applyFilterBtn" class="px-4 py-2 bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold rounded-lg transition-all active:scale-95">
-                        Apply
-                    </button>
-                    <button id="clearFilterBtn" class="px-3 py-2 text-slate-500 hover:text-slate-700 dark:hover:text-slate-200 text-xs font-bold rounded-lg border border-slate-200 dark:border-slate-600 transition-all">
-                        Clear
-                    </button>
+
+            <div class="flex items-center gap-4">
+                <!-- Date Filter Mockup Style -->
+                <div class="flex items-center gap-2 bg-white dark:bg-slate-800 p-1.5 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
+                    <input type="date" id="startDate" class="bg-transparent border-none text-xs text-slate-600 dark:text-slate-300 focus:ring-0">
+                    <span class="text-slate-400 text-[10px] font-bold">to</span>
+                    <input type="date" id="endDate" class="bg-transparent border-none text-xs text-slate-600 dark:text-slate-300 focus:ring-0">
+                    <button id="applyBtn" class="bg-[#8B5CF6] hover:bg-violet-700 text-white px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all">Apply</button>
+                    <button id="clearBtn" class="px-3 py-2 text-slate-500 hover:text-slate-700 text-[10px] font-black uppercase tracking-widest transition-all border border-slate-100 dark:border-slate-700 rounded-lg">Clear</button>
                 </div>
-                <!-- Auto-refresh indicator -->
-                <div class="flex items-center gap-2 px-3 py-2 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg border border-emerald-200 dark:border-emerald-800">
-                    <div class="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
-                    <span class="text-[10px] font-black text-emerald-700 dark:text-emerald-400 uppercase tracking-widest">Live</span>
-                    <span id="refreshCountdown" class="text-[10px] text-emerald-600 dark:text-emerald-500 font-bold">60s</span>
+
+                <!-- Live Indicator -->
+                <div class="flex items-center gap-2 px-4 py-2.5 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800/50 rounded-full">
+                    <div class="w-2 h-2 bg-emerald-500 rounded-full live-pulse"></div>
+                    <span class="text-[10px] font-black text-emerald-700 dark:text-emerald-400 uppercase tracking-[0.1em]">Live</span>
+                    <span id="countdown" class="text-[10px] font-bold text-emerald-600">30s</span>
                 </div>
             </div>
         </header>
 
-        <div class="flex-grow p-8 space-y-8">
-
-            <!-- Summary Bar -->
-            <div id="summaryBar" class="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                <div class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-5">
-                    <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Staff</p>
-                    <p id="summTotal" class="text-3xl font-black text-slate-900 dark:text-white">—</p>
+        <div class="p-8 space-y-10">
+            
+            <!-- Summary Stats -->
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <div class="bg-white dark:bg-slate-800 p-8 rounded-[2rem] border border-slate-200 dark:border-slate-700 shadow-sm">
+                    <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Total Staff</p>
+                    <h3 id="summTotal" class="text-4xl font-black text-slate-900 dark:text-white">0</h3>
                 </div>
-                <div class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-5">
-                    <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Transactions Today</p>
-                    <p id="summToday" class="text-3xl font-black text-blue-600">—</p>
+                <div class="bg-white dark:bg-slate-800 p-8 rounded-[2rem] border border-slate-200 dark:border-slate-700 shadow-sm">
+                    <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Transactions Today</p>
+                    <h3 id="summToday" class="text-4xl font-black text-blue-600">0</h3>
                 </div>
-                <div class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-5">
-                    <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Pending</p>
-                    <p id="summPending" class="text-3xl font-black text-amber-500">—</p>
+                <div id="pendingCard" class="bg-white dark:bg-slate-800 p-8 rounded-[2rem] border-2 border-amber-500 shadow-sm cursor-pointer hover:bg-amber-50 dark:hover:bg-amber-900/10 transition-all">
+                    <p class="text-[10px] font-black text-amber-500 uppercase tracking-widest mb-2">Pending</p>
+                    <h3 id="summPending" class="text-4xl font-black text-amber-500">0</h3>
                 </div>
-                <div class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-5">
-                    <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Completed</p>
-                    <p id="summCompleted" class="text-3xl font-black text-emerald-600">—</p>
+                <div class="bg-white dark:bg-slate-800 p-8 rounded-[2rem] border border-slate-200 dark:border-slate-700 shadow-sm">
+                    <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Completed</p>
+                    <h3 id="summCompleted" class="text-4xl font-black text-emerald-500">0</h3>
                 </div>
             </div>
 
-            <!-- Staff Cards -->
+            <!-- Staff Overview Section -->
             <section>
-                <h2 class="text-sm font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-4">Staff Overview</h2>
-                <div id="staffGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-                    <!-- Injected by JS -->
-                    <div class="col-span-full flex justify-center py-16">
+                <div class="flex items-center justify-between mb-6">
+                    <h2 class="text-sm font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.15em]">Staff Overview</h2>
+                </div>
+                <div id="staffGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <!-- Dynamic Staff Cards -->
+                    <div class="col-span-full flex justify-center py-12">
                         <div class="animate-spin rounded-full h-10 w-10 border-4 border-violet-500 border-t-transparent"></div>
                     </div>
                 </div>
             </section>
 
-            <!-- Detail Log Table -->
-            <section>
-                <div class="flex items-center justify-between mb-4">
-                    <h2 class="text-sm font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">Transaction Log</h2>
+            <!-- Transaction Log Section -->
+            <section id="logSection">
+                <div class="flex items-center justify-between mb-6">
+                    <h2 class="text-sm font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.15em]">Transaction Log</h2>
                     <div class="flex items-center gap-3">
-                        <select id="staffFilter" class="text-xs px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-violet-400 font-bold">
+                        <select id="staffFilter" class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2 text-xs font-bold focus:ring-2 focus:ring-violet-400 outline-none">
                             <option value="">All Staff</option>
                         </select>
-                        <select id="statusFilter" class="text-xs px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-violet-400 font-bold">
+                        <select id="statusFilter" class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2 text-xs font-bold focus:ring-2 focus:ring-violet-400 outline-none">
                             <option value="">All Statuses</option>
                             <option value="pending">Pending</option>
                             <option value="completed">Completed</option>
@@ -145,20 +146,21 @@
                         </select>
                     </div>
                 </div>
-                <div class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden shadow-sm">
+                
+                <div class="bg-white dark:bg-slate-800 rounded-[2rem] border border-slate-200 dark:border-slate-700 overflow-hidden shadow-sm">
                     <div class="overflow-x-auto">
-                        <table class="w-full text-sm">
-                            <thead>
-                                <tr class="border-b border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60">
-                                    <th class="text-left px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Date & Time</th>
-                                    <th class="text-left px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Student</th>
-                                    <th class="text-left px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Transaction</th>
-                                    <th class="text-left px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Staff</th>
-                                    <th class="text-center px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Status</th>
+                        <table class="w-full text-left">
+                            <thead class="bg-[#64748B] text-white">
+                                <tr>
+                                    <th class="px-8 py-5 text-[10px] font-black uppercase tracking-widest">Date & Time</th>
+                                    <th class="px-8 py-5 text-[10px] font-black uppercase tracking-widest">Student</th>
+                                    <th class="px-8 py-5 text-[10px] font-black uppercase tracking-widest">Transaction</th>
+                                    <th class="px-8 py-5 text-[10px] font-black uppercase tracking-widest">Staff</th>
+                                    <th class="px-8 py-5 text-center text-[10px] font-black uppercase tracking-widest">Status</th>
                                 </tr>
                             </thead>
-                            <tbody id="logTableBody">
-                                <tr><td colspan="5" class="px-6 py-10 text-center text-slate-400 font-bold">Loading…</td></tr>
+                            <tbody id="logTableBody" class="divide-y divide-slate-100 dark:divide-slate-700">
+                                <!-- Populated via JS -->
                             </tbody>
                         </table>
                     </div>
@@ -168,34 +170,143 @@
         </div>
     </main>
 
-    <!-- Toast -->
-    <div id="toastContainer" class="fixed bottom-6 right-6 z-50 flex flex-col gap-3"></div>
-    <template id="toastTemplate">
-        <div class="toast-item flex items-center gap-3 bg-slate-900 dark:bg-slate-700 text-white px-5 py-3 rounded-2xl shadow-2xl min-w-[260px]">
-            <div class="toast-icon-container w-8 h-8 rounded-xl bg-white/10 flex items-center justify-center flex-shrink-0">
-                <i data-lucide="check-circle" class="toast-icon w-4 h-4 text-emerald-400"></i>
+    <!-- Staff Detail Modal -->
+    <div id="staffModal" class="fixed inset-0 z-[100] hidden items-center justify-center bg-slate-900/60 backdrop-blur-md p-4 animate-in fade-in duration-300">
+        <div class="bg-white dark:bg-slate-800 rounded-[3rem] shadow-2xl w-full max-w-2xl overflow-hidden border border-slate-100 dark:border-slate-700 animate-in zoom-in-95 duration-300">
+            <!-- Modal Header -->
+            <div class="p-8 pb-0 flex justify-between items-start">
+                <div class="flex items-center gap-6">
+                    <div id="modalAvatar" class="w-20 h-20 rounded-[2rem] bg-violet-100 text-violet-600 flex items-center justify-center font-black text-3xl border-2 border-white shadow-lg">
+                        JD
+                    </div>
+                    <div>
+                        <h2 id="modalStaffName" class="text-3xl font-black text-slate-900 dark:text-white tracking-tight">Staff Name</h2>
+                        <div id="modalStatus" class="flex items-center gap-2 mt-2 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest bg-emerald-50 text-emerald-600 w-fit">
+                            <div class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></div>
+                            Active
+                        </div>
+                    </div>
+                </div>
+                <button type="button" onclick="closeModal()" class="bg-slate-50 dark:bg-slate-700 p-3 rounded-2xl text-slate-400 hover:text-red-500 transition-all">
+                    <i data-lucide="x" class="w-6 h-6"></i>
+                </button>
             </div>
-            <p class="toast-message text-sm font-semibold flex-grow"></p>
+
+            <div class="p-8">
+                <!-- Mini Stats Grid -->
+                <div class="grid grid-cols-3 gap-4 mb-8">
+                    <div class="bg-slate-50 dark:bg-slate-900/50 p-4 rounded-2xl border border-slate-100 dark:border-slate-700 text-center">
+                        <p id="modalStatTotal" class="text-2xl font-black text-slate-900 dark:text-white">0</p>
+                        <p class="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-1">Total Logs</p>
+                    </div>
+                    <div class="bg-blue-50 dark:bg-blue-900/10 p-4 rounded-2xl border border-blue-100 dark:border-blue-900/20 text-center">
+                        <p id="modalStatToday" class="text-2xl font-black text-blue-600">0</p>
+                        <p class="text-[9px] font-black text-blue-400 uppercase tracking-widest mt-1">Today</p>
+                    </div>
+                    <div class="bg-amber-50 dark:bg-amber-900/10 p-4 rounded-2xl border border-amber-100 dark:border-amber-900/20 text-center">
+                        <p id="modalStatPending" class="text-2xl font-black text-amber-600">0</p>
+                        <p class="text-[9px] font-black text-amber-400 uppercase tracking-widest mt-1">Pending</p>
+                    </div>
+                </div>
+
+                <!-- Current Tasks / Pending List -->
+                <div class="space-y-4">
+                    <h3 class="text-xs font-black text-slate-400 uppercase tracking-widest">Active & Pending Transactions</h3>
+                    <div id="modalTaskList" class="max-h-[300px] overflow-y-auto space-y-3 pr-2 custom-scrollbar">
+                        <!-- Tasks go here -->
+                        <div class="text-center py-10 text-slate-400 font-bold italic">No active tasks.</div>
+                    </div>
+                </div>
+
+                <div class="mt-8 flex items-center justify-between gap-4">
+                    <div class="flex-grow">
+                        <div class="flex justify-between items-center mb-1.5">
+                            <span class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Success Rate</span>
+                            <span id="modalRateText" class="text-[10px] font-black text-emerald-600">0%</span>
+                        </div>
+                        <div class="h-2.5 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
+                            <div id="modalRateBar" class="h-full bg-emerald-500 rounded-full transition-all duration-700" style="width:0%"></div>
+                        </div>
+                    </div>
+                    <button onclick="viewFullLogFromModal()" class="bg-slate-900 dark:bg-white dark:text-slate-900 text-white font-black px-6 py-4 rounded-2xl text-xs uppercase tracking-widest hover:-translate-y-1 transition-all shadow-xl shadow-slate-900/20">
+                        View Full Log
+                    </button>
+                </div>
+            </div>
         </div>
-    </template>
+    </div>
 
-    <script type="module" src="js/firebase.js"></script>
-    <script type="module" src="js/auth.js"></script>
-    <script type="module" src="js/navigation.js"></script>
+    <!-- Proof Viewer Modal -->
+    <div id="proofViewerModal" class="hidden fixed inset-0 z-[110] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-md animate-in fade-in duration-300">
+        <div class="relative bg-white dark:bg-slate-800 rounded-[3rem] shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col animate-in zoom-in-95 duration-300">
+            <div class="p-6 border-b border-slate-100 dark:border-slate-700 flex items-center justify-between">
+                <h3 class="text-xl font-black text-slate-800 dark:text-white">Document Attachment</h3>
+                <button onclick="closeProofModal()" class="p-3 rounded-2xl hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-400 hover:text-red-500 transition-all">
+                    <i data-lucide="x" class="w-6 h-6"></i>
+                </button>
+            </div>
+            <div class="p-8 overflow-auto flex justify-center bg-slate-50 dark:bg-slate-900/50">
+                <img id="proofImageElement" src="" alt="Proof" class="hidden max-w-full rounded-2xl shadow-lg border border-slate-200 dark:border-slate-700">
+                <iframe id="proofPdfElement" class="hidden w-full h-[70vh] rounded-2xl border border-slate-200 dark:border-slate-700"></iframe>
+                <div id="noProofMessage" class="hidden py-20 text-center text-slate-400 italic">No file to display.</div>
+            </div>
+            <div class="p-6 border-t border-slate-100 dark:border-slate-700 flex justify-end bg-white dark:bg-slate-800">
+                <button onclick="closeProofModal()" class="bg-slate-900 dark:bg-white dark:text-slate-900 text-white font-black px-8 py-3 rounded-2xl hover:-translate-y-1 transition-all">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Remote Sign Modal -->
+    <div id="remoteSignModal" class="hidden fixed inset-0 z-[120] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-md animate-in fade-in duration-300">
+        <div class="relative bg-white dark:bg-slate-800 rounded-[3.5rem] shadow-2xl max-w-lg w-full overflow-hidden flex flex-col animate-in zoom-in-95 duration-300">
+            <div class="p-8 text-center bg-blue-50/50 dark:bg-blue-900/10 border-b border-slate-100 dark:border-slate-700">
+                <div class="w-16 h-16 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-600 mx-auto flex items-center justify-center mb-4">
+                    <i data-lucide="pen-tool" class="w-8 h-8"></i>
+                </div>
+                <h3 class="text-2xl font-black text-slate-800 dark:text-white">Remote Approval</h3>
+                <p class="text-slate-500 dark:text-slate-400 font-medium text-sm mt-1">Please provide your signature to approve this request.</p>
+            </div>
+            
+            <div class="p-8 space-y-6">
+                <div class="relative bg-slate-50 dark:bg-slate-900/50 rounded-[2rem] border-2 border-dashed border-slate-200 dark:border-slate-700 p-4">
+                    <canvas id="signaturePad" class="w-full h-48 rounded-xl"></canvas>
+                    <button onclick="clearSignature()" class="absolute top-4 right-4 p-2 bg-white dark:bg-slate-800 rounded-lg shadow-sm text-slate-400 hover:text-red-500 transition-all border border-slate-100 dark:border-slate-700">
+                        <i data-lucide="rotate-ccw" class="w-4 h-4"></i>
+                    </button>
+                    <div class="absolute bottom-4 left-0 right-0 text-center pointer-events-none">
+                        <p class="text-[9px] font-black uppercase tracking-widest text-slate-300">Sign within the area</p>
+                    </div>
+                </div>
+
+                <div class="bg-blue-50/50 dark:bg-blue-900/5 p-4 rounded-2xl border border-blue-100 dark:border-blue-900/20">
+                    <p class="text-[10px] font-bold text-blue-600/70 dark:text-blue-400/70 leading-relaxed text-center">
+                        This signature will be electronically attached to the document and a notification will be sent to the student.
+                    </p>
+                </div>
+            </div>
+
+            <div class="p-8 border-t border-slate-100 dark:border-slate-700 flex gap-4 bg-white dark:bg-slate-800">
+                <button onclick="closeSignModal()" class="flex-1 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 font-black py-4 rounded-2xl transition-all active:scale-95 text-[10px] uppercase tracking-widest">Cancel</button>
+                <button id="submitSignBtn" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-black py-4 rounded-2xl shadow-xl shadow-blue-500/20 transition-all active:scale-95 text-[10px] uppercase tracking-widest">Confirm & Sign</button>
+            </div>
+        </div>
+    </div>
+
     <script type="module">
-        import { loadSystemSettings } from './js/settings.js';
-
         const OFFICE_ID = 'engineering-office';
         let allLogs = [];
         let allStats = [];
         let refreshTimer = null;
-        let countdown = 60;
+        let countdown = 30;
 
-        // ── Helpers ──────────────────────────────────────────────
-        function fmtDate(iso) {
-            if (!iso) return '—';
-            return new Date(iso).toLocaleString([], { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' });
+        // Helpers
+        const setEl = (id, val) => { const el = document.getElementById(id); if(el) el.textContent = val; };
+        
+        function formatDateTime(iso) {
+            if(!iso) return '---';
+            return new Date(iso).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
         }
+
         function timeSince(iso) {
             if (!iso) return 'Never';
             const diff = Date.now() - new Date(iso).getTime();
@@ -206,189 +317,381 @@
             if (h < 24) return `${h}h ago`;
             return `${Math.floor(h/24)}d ago`;
         }
-        function isActive(iso) {
-            if (!iso) return false;
-            return (Date.now() - new Date(iso).getTime()) < 3600000; // < 1 hour
-        }
-        function statusBadge(status) {
-            const s = String(status || 'pending').toLowerCase();
-            if (s === 'completed') return `<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">Completed</span>`;
-            if (s === 'claimed')   return `<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">Claimed</span>`;
-            return `<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">Pending</span>`;
-        }
-        function getFilters() {
-            return {
-                startDate: document.getElementById('startDate').value,
-                endDate:   document.getElementById('endDate').value,
-            };
-        }
 
-        // ── Fetch Staff Stats ────────────────────────────────────
-        async function fetchStats() {
-            const { startDate, endDate } = getFilters();
-            let url = `/api/staff-stats?officeId=${OFFICE_ID}`;
-            if (startDate) url += `&startDate=${startDate}`;
-            if (endDate)   url += `&endDate=${endDate}`;
-            const res = await fetch(url);
-            if (!res.ok) throw new Error('Failed to fetch staff stats');
-            return res.json();
-        }
+        async function fetchData() {
+            try {
+                const sDate = document.getElementById('startDate').value;
+                const eDate = document.getElementById('endDate').value;
+                let statUrl = `/api/staff-stats?officeId=${OFFICE_ID}`;
+                let logUrl = `/api/logs?officeId=${OFFICE_ID}&limit=100`;
+                if(sDate) { statUrl += `&startDate=${sDate}`; logUrl += `&startDate=${sDate}`; }
+                if(eDate) { statUrl += `&endDate=${eDate}`; logUrl += `&endDate=${eDate}`; }
 
-        // ── Fetch Logs ───────────────────────────────────────────
-        async function fetchLogs() {
-            const { startDate, endDate } = getFilters();
-            let url = `/api/logs?officeId=${OFFICE_ID}&limit=300`;
-            if (startDate) url += `&startDate=${startDate}`;
-            if (endDate)   url += `&endDate=${endDate}`;
-            const res = await fetch(url);
-            if (!res.ok) throw new Error('Failed to fetch logs');
-            return res.json();
-        }
-
-        // ── Render Staff Cards ───────────────────────────────────
-        function renderStaffCards(stats) {
-            const grid = document.getElementById('staffGrid');
-            if (!stats.length) {
-                grid.innerHTML = `<p class="col-span-full text-center py-16 text-slate-400 font-bold">No staff data found.</p>`;
-                return;
+                const [sRes, lRes] = await Promise.all([fetch(statUrl), fetch(logUrl)]);
+                allStats = await sRes.json();
+                allLogs = await lRes.json();
+                
+                renderUI();
+            } catch (e) {
+                console.error('Fetch error:', e);
             }
+        }
 
-            // Update summary bar
-            document.getElementById('summTotal').textContent = stats.length;
-            document.getElementById('summToday').textContent = stats.reduce((a,s)=>a+s.today,0);
-            document.getElementById('summPending').textContent = stats.reduce((a,s)=>a+s.pending,0);
-            document.getElementById('summCompleted').textContent = stats.reduce((a,s)=>a+s.completed,0);
+        function renderUI() {
+            // Summary Cards
+            setEl('summTotal', allStats.length);
+            setEl('summToday', allStats.reduce((a,s)=>a+s.today, 0));
+            setEl('summPending', allStats.reduce((a,s)=>a+s.pending, 0));
+            setEl('summCompleted', allStats.reduce((a,s)=>a+s.completed, 0));
 
-            // Populate staff filter dropdown
+            // Staff Filter Dropdown
             const staffFilter = document.getElementById('staffFilter');
-            const currentVal = staffFilter.value;
-            staffFilter.innerHTML = `<option value="">All Staff</option>` +
-                stats.map(s => `<option value="${s.name}">${s.name}</option>`).join('');
-            staffFilter.value = currentVal;
+            const currentStaff = staffFilter.value;
+            staffFilter.innerHTML = '<option value="">All Staff</option>' + 
+                allStats.map(s => `<option value="${s.name}">${s.name}</option>`).join('');
+            staffFilter.value = currentStaff;
 
-            grid.innerHTML = stats.map(s => {
-                const active = isActive(s.lastActive);
-                const completionRate = s.total > 0 ? Math.round((s.completed / s.total) * 100) : 0;
+            // Staff Cards
+            const grid = document.getElementById('staffGrid');
+            grid.innerHTML = allStats.map(s => {
+                const active = (Date.now() - new Date(s.lastActive).getTime()) < 3600000;
+                const rate = s.total > 0 ? Math.round((s.completed / s.total) * 100) : 0;
                 const initials = s.name.split(' ').filter(w => w.match(/^[A-Z]/)).slice(0,2).map(w=>w[0]).join('') || s.name[0];
+                
                 return `
-                <div class="bg-white dark:bg-slate-800 rounded-2xl border-2 ${active ? 'border-emerald-200 dark:border-emerald-800' : 'border-slate-200 dark:border-slate-700'} p-6 shadow-sm hover:shadow-md transition-all">
-                    <div class="flex items-start justify-between mb-4">
-                        <div class="flex items-center gap-3">
-                            <div class="w-12 h-12 rounded-2xl bg-violet-100 dark:bg-violet-900/30 text-violet-600 dark:text-violet-400 flex items-center justify-center font-black text-lg">
+                <div onclick="openStaffModal('${s.name}')" class="bg-white dark:bg-slate-800 rounded-[2rem] border border-slate-200 dark:border-slate-700 p-6 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all cursor-pointer group">
+                    <div class="flex items-start justify-between mb-6">
+                        <div class="flex items-center gap-4">
+                            <div class="w-14 h-14 rounded-2xl bg-violet-50 dark:bg-violet-900/30 text-violet-600 flex items-center justify-center font-black text-xl border border-violet-100 dark:border-violet-800/50 shadow-sm group-hover:scale-110 transition-transform">
                                 ${initials}
                             </div>
                             <div>
-                                <h3 class="font-black text-slate-900 dark:text-white text-sm leading-tight">${s.name}</h3>
-                                <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">Last: ${timeSince(s.lastActive)}</p>
+                                <h3 class="font-black text-slate-800 dark:text-white text-base leading-tight">${s.name}</h3>
+                                <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">LAST: ${timeSince(s.lastActive).toUpperCase()}</p>
                             </div>
                         </div>
-                        <div class="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${active ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400'}">
+                        <div class="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${active ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-400'}">
                             <div class="w-1.5 h-1.5 rounded-full ${active ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}"></div>
                             ${active ? 'Active' : 'Idle'}
                         </div>
                     </div>
 
-                    <div class="grid grid-cols-3 gap-3 mb-4">
-                        <div class="bg-slate-50 dark:bg-slate-700/50 rounded-xl p-3 text-center">
-                            <p class="text-xl font-black text-slate-900 dark:text-white">${s.total}</p>
-                            <p class="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-0.5">Total</p>
+                    <div class="grid grid-cols-3 gap-4 mb-6">
+                        <div class="staff-card-stat bg-[#F8FAFC] dark:bg-slate-900/50 rounded-2xl p-4 text-center border border-slate-100 dark:border-slate-800">
+                            <p class="text-2xl font-black text-slate-800 dark:text-white">${s.total}</p>
+                            <p class="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-1">Total</p>
                         </div>
-                        <div class="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-3 text-center">
-                            <p class="text-xl font-black text-blue-600 dark:text-blue-400">${s.today}</p>
-                            <p class="text-[9px] font-black text-blue-400 uppercase tracking-widest mt-0.5">Today</p>
+                        <div class="staff-card-stat bg-blue-50 dark:bg-blue-900/10 rounded-2xl p-4 text-center border border-blue-100 dark:border-blue-900/20">
+                            <p class="text-2xl font-black text-blue-600">${s.today}</p>
+                            <p class="text-[9px] font-black text-blue-400 uppercase tracking-widest mt-1">Today</p>
                         </div>
-                        <div class="bg-amber-50 dark:bg-amber-900/20 rounded-xl p-3 text-center">
-                            <p class="text-xl font-black text-amber-600 dark:text-amber-400">${s.pending}</p>
-                            <p class="text-[9px] font-black text-amber-400 uppercase tracking-widest mt-0.5">Pending</p>
+                        <div class="staff-card-stat bg-amber-50 dark:bg-amber-900/10 rounded-2xl p-4 text-center border border-amber-100 dark:border-amber-900/20">
+                            <p class="text-2xl font-black text-amber-600">${s.pending}</p>
+                            <p class="text-[9px] font-black text-amber-400 uppercase tracking-widest mt-1">Pending</p>
                         </div>
                     </div>
 
-                    <!-- Completion Rate Bar -->
-                    <div>
-                        <div class="flex justify-between items-center mb-1.5">
+                    <div class="space-y-2">
+                        <div class="flex justify-between items-center">
                             <span class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Completion Rate</span>
-                            <span class="text-[10px] font-black text-emerald-600 dark:text-emerald-400">${completionRate}%</span>
+                            <span class="text-[10px] font-black text-emerald-600">${rate}%</span>
                         </div>
-                        <div class="h-2 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
-                            <div class="h-full bg-gradient-to-r from-emerald-400 to-emerald-600 rounded-full transition-all duration-700" style="width:${completionRate}%"></div>
+                        <div class="h-2.5 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden shadow-inner">
+                            <div class="h-full bg-gradient-to-r from-emerald-400 to-emerald-600 rounded-full transition-all duration-700" style="width:${rate}%"></div>
                         </div>
+                        <p class="text-[10px] text-slate-400 font-bold mt-3">Avg. service time: <span class="text-slate-700 dark:text-slate-300">${s.avgResponseMinutes || 0} min</span></p>
                     </div>
-                    ${s.avgResponseMinutes !== null ? `<p class="text-[10px] text-slate-400 font-bold mt-2">Avg. service time: <span class="text-slate-600 dark:text-slate-300">${s.avgResponseMinutes} min</span></p>` : ''}
                 </div>`;
             }).join('');
 
-            if (window.lucide) lucide.createIcons();
+            renderTable();
+            if(window.lucide) lucide.createIcons();
         }
 
-        // ── Render Log Table ─────────────────────────────────────
-        function renderTable(logs) {
+        function renderTable() {
             const tbody = document.getElementById('logTableBody');
-            const staffVal  = document.getElementById('staffFilter').value.toLowerCase();
-            const statusVal = document.getElementById('statusFilter').value.toLowerCase();
+            const sVal = document.getElementById('staffFilter').value.toLowerCase();
+            const stVal = document.getElementById('statusFilter').value.toLowerCase();
 
-            let filtered = logs;
-            if (staffVal)  filtered = filtered.filter(l => (l.staff||'').toLowerCase().includes(staffVal));
-            if (statusVal) filtered = filtered.filter(l => (l.status||'pending').toLowerCase() === statusVal);
+            const filtered = allLogs.filter(l => {
+                const matchStaff = !sVal || (l.staff||'').toLowerCase().includes(sVal);
+                const matchStatus = !stVal || (l.status||'pending').toLowerCase() === stVal;
+                return matchStaff && matchStatus;
+            });
 
-            if (!filtered.length) {
-                tbody.innerHTML = `<tr><td colspan="5" class="px-6 py-10 text-center text-slate-400 font-bold">No transactions found.</td></tr>`;
+            if(filtered.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" class="px-8 py-10 text-center text-slate-400 font-bold italic">No matching transactions found.</td></tr>';
                 return;
             }
-            tbody.innerHTML = filtered.slice(0, 200).map(l => `
-                <tr class="border-b border-slate-100 dark:border-slate-700/50 hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors">
-                    <td class="px-6 py-4 text-xs text-slate-500 dark:text-slate-400 font-bold whitespace-nowrap">${fmtDate(l.timeIn)}</td>
-                    <td class="px-6 py-4">
-                        <p class="font-black text-slate-900 dark:text-white text-sm">${l.studentName || '—'}</p>
-                        <p class="text-[10px] text-slate-400 font-bold">${l.studentId || l.studentNumber || ''}</p>
+
+            tbody.innerHTML = filtered.map(l => {
+                const status = (l.status || 'pending').toLowerCase();
+                let pill = `<span class="bg-amber-100 text-amber-700 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider">Pending</span>`;
+                if(status === 'completed') pill = `<span class="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider">Completed</span>`;
+                if(status === 'claimed') pill = `<span class="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider">Claimed</span>`;
+
+                return `
+                <tr class="hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors">
+                    <td class="px-8 py-6 text-xs text-slate-500 font-bold">${formatDateTime(l.timeIn || l.timestamp)}</td>
+                    <td class="px-8 py-6">
+                        <p class="font-black text-slate-900 dark:text-white text-sm">${l.studentName || '---'}</p>
+                        <p class="text-[10px] font-bold text-slate-400">${l.studentNumber || ''}</p>
                     </td>
-                    <td class="px-6 py-4 text-sm font-bold text-slate-700 dark:text-slate-300">${l.activity || '—'}</td>
-                    <td class="px-6 py-4 text-sm font-bold text-violet-600 dark:text-violet-400">${l.staff || '—'}</td>
-                    <td class="px-6 py-4 text-center">${statusBadge(l.status)}</td>
-                </tr>
-            `).join('');
+                    <td class="px-8 py-6 text-sm font-bold text-slate-700 dark:text-slate-300">${l.activity || '---'}</td>
+                    <td class="px-8 py-6 text-sm font-bold text-violet-600 dark:text-violet-400">${l.staff || '---'}</td>
+                    <td class="px-8 py-6 text-center">${pill}</td>
+                </tr>`;
+            }).join('');
         }
 
-        // ── Main Load ────────────────────────────────────────────
-        async function loadAll() {
-            try {
-                [allStats, allLogs] = await Promise.all([fetchStats(), fetchLogs()]);
-                renderStaffCards(allStats);
-                renderTable(allLogs);
-            } catch (e) {
-                console.error(e);
-                document.getElementById('staffGrid').innerHTML = `<p class="col-span-full text-center py-16 text-red-500 font-bold">Failed to load data. Please refresh.</p>`;
+        window.filterTable = (staff, status) => {
+            document.getElementById('staffFilter').value = staff;
+            document.getElementById('statusFilter').value = status;
+            renderTable();
+            document.getElementById('logSection').scrollIntoView({ behavior: 'smooth' });
+        };
+
+        window.openStaffModal = (staffName) => {
+            const s = allStats.find(x => x.name === staffName);
+            if (!s) return;
+
+            const modal = document.getElementById('staffModal');
+            const nameEl = document.getElementById('modalStaffName');
+            const avatarEl = document.getElementById('modalAvatar');
+            const statusEl = document.getElementById('modalStatus');
+            const rateBar = document.getElementById('modalRateBar');
+            const rateText = document.getElementById('modalRateText');
+            
+            nameEl.textContent = s.name;
+            const initials = s.name.split(' ').filter(w => w.match(/^[A-Z]/)).slice(0,2).map(w=>w[0]).join('') || s.name[0];
+            avatarEl.textContent = initials;
+            
+            const active = (Date.now() - new Date(s.lastActive).getTime()) < 3600000;
+            statusEl.innerHTML = `<div class="w-1.5 h-1.5 rounded-full ${active ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}"></div>${active ? 'Active' : 'Idle'}`;
+            statusEl.className = `flex items-center gap-2 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest w-fit ${active ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-400'}`;
+            
+            setEl('modalStatTotal', s.total);
+            setEl('modalStatToday', s.today);
+            setEl('modalStatPending', s.pending);
+            
+            const rate = s.total > 0 ? Math.round((s.completed / s.total) * 100) : 0;
+            rateBar.style.width = rate + '%';
+            rateText.textContent = rate + '%';
+
+            // Filter specific pending tasks for this staff
+            const tasks = allLogs.filter(l => l.staff === s.name && (l.status === 'pending' || l.status === 'in-service'));
+            const taskList = document.getElementById('modalTaskList');
+            
+            if (tasks.length === 0) {
+                taskList.innerHTML = `
+                    <div class="flex flex-col items-center justify-center py-16 opacity-40">
+                        <i data-lucide="check-circle-2" class="w-12 h-12 mb-4 text-slate-300"></i>
+                        <p class="font-black text-sm uppercase tracking-widest text-slate-400">All clear!</p>
+                        <p class="text-[10px] font-bold mt-1 text-slate-400">No pending transactions for today</p>
+                    </div>`;
+            } else {
+                taskList.innerHTML = tasks.map(t => {
+                    const hasAttachment = !!t.softCopyPath;
+                    return `
+                    <div class="bg-white dark:bg-slate-800/50 p-5 rounded-[2rem] border border-slate-100 dark:border-slate-700/50 flex flex-col gap-4 group/task hover:border-violet-200 dark:hover:border-violet-800 transition-all shadow-sm hover:shadow-md">
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center gap-4">
+                                <div class="w-1.5 h-10 rounded-full ${t.status === 'in-service' ? 'bg-blue-500' : 'bg-amber-500'}"></div>
+                                <div>
+                                    <p class="font-black text-slate-900 dark:text-white text-sm leading-tight">${t.studentName || '---'}</p>
+                                    <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">${t.activity}</p>
+                                </div>
+                            </div>
+                            <div class="flex flex-col items-end gap-1">
+                                 <span class="px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest ${t.status === 'in-service' ? 'bg-blue-50 text-blue-600 dark:bg-blue-900/20' : 'bg-amber-50 text-amber-600 dark:bg-amber-900/20'}">
+                                    ${t.status === 'in-service' ? 'Processing' : 'Pending'}
+                                </span>
+                                <span class="text-[9px] font-bold text-slate-300">${formatDateTime(t.timeIn).split(',')[1]}</span>
+                            </div>
+                        </div>
+                        
+                        <div class="flex gap-2">
+                            ${hasAttachment ? `
+                                <button onclick="viewAttachment('${t.softCopyPath}')" class="flex-1 flex items-center justify-center gap-2 bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/20 dark:hover:bg-blue-900/30 text-blue-600 dark:text-blue-400 font-black py-2.5 rounded-xl text-[9px] uppercase tracking-widest transition-all">
+                                    <i data-lucide="paperclip" class="w-3.5 h-3.5"></i>
+                                    View Attachment
+                                </button>
+                            ` : ''}
+                            <button onclick="handleRemoteSign(${t.id})" class="flex-1 flex items-center justify-center gap-2 bg-[#8B5CF6] hover:bg-violet-700 text-white font-black py-2.5 rounded-xl text-[9px] uppercase tracking-widest transition-all shadow-lg shadow-violet-500/20">
+                                <i data-lucide="signature" class="w-3.5 h-3.5"></i>
+                                Approve & Sign
+                            </button>
+                        </div>
+                    </div>
+                `;}).join('');
             }
-        }
 
-        // ── Auto Refresh ─────────────────────────────────────────
-        function startRefreshTimer() {
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            modal.dataset.currentStaff = staffName;
+            if (window.lucide) lucide.createIcons();
+        };
+
+        window.closeModal = () => {
+            const modal = document.getElementById('staffModal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        };
+
+        window.viewFullLogFromModal = () => {
+            const staffName = document.getElementById('staffModal').dataset.currentStaff;
+            closeModal();
+            filterTable(staffName, '');
+        };
+
+        // Remote Signing & Proof Viewing (NEW)
+        let signaturePad = null;
+        let currentSignLogId = null;
+
+        window.viewAttachment = (path) => {
+            const modal = document.getElementById('proofViewerModal');
+            const img = document.getElementById('proofImageElement');
+            const iframe = document.getElementById('proofPdfElement');
+            const noMsg = document.getElementById('noProofMessage');
+
+            img.classList.add('hidden');
+            iframe.classList.add('hidden');
+            noMsg.classList.add('hidden');
+
+            if (!path) {
+                noMsg.classList.remove('hidden');
+            } else {
+                const isPdf = path.toLowerCase().endsWith('.pdf');
+                if (isPdf) {
+                    iframe.src = path;
+                    iframe.classList.remove('hidden');
+                } else {
+                    img.src = path;
+                    img.classList.remove('hidden');
+                }
+            }
+
+            modal.classList.remove('hidden');
+            if (window.lucide) lucide.createIcons();
+        };
+
+        window.closeProofModal = () => {
+            document.getElementById('proofViewerModal').classList.add('hidden');
+            document.getElementById('proofPdfElement').src = '';
+        };
+
+        window.handleRemoteSign = (logId) => {
+            currentSignLogId = logId;
+            const modal = document.getElementById('remoteSignModal');
+            modal.classList.remove('hidden');
+            
+            const canvas = document.getElementById('signaturePad');
+            if (!signaturePad) {
+                signaturePad = new SignaturePad(canvas, {
+                    backgroundColor: 'rgba(0,0,0,0)',
+                    penColor: 'rgb(30, 41, 59)'
+                });
+            } else {
+                signaturePad.clear();
+            }
+
+            // Resize canvas
+            const ratio = Math.max(window.devicePixelRatio || 1, 1);
+            canvas.width = canvas.offsetWidth * ratio;
+            canvas.height = canvas.offsetHeight * ratio;
+            canvas.getContext("2d").scale(ratio, ratio);
+            signaturePad.clear();
+
+            if (window.lucide) lucide.createIcons();
+        };
+
+        window.closeSignModal = () => {
+            document.getElementById('remoteSignModal').classList.add('hidden');
+            currentSignLogId = null;
+        };
+
+        window.clearSignature = () => {
+            if (signaturePad) signaturePad.clear();
+        };
+
+        document.getElementById('submitSignBtn')?.addEventListener('click', async () => {
+            if (!signaturePad || signaturePad.isEmpty()) {
+                alert('Please provide a signature first.');
+                return;
+            }
+
+            const signatureData = signaturePad.toDataURL(); // Base64
+            const btn = document.getElementById('submitSignBtn');
+            btn.disabled = true;
+            btn.textContent = 'Processing…';
+
+            const staffName = document.getElementById('staffModal').dataset.currentStaff;
+
+            try {
+                const res = await fetch(`/api/logs/${currentSignLogId}/sign`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        staffName: staffName,
+                        signature: signatureData,
+                        officeId: OFFICE_ID
+                    })
+                });
+
+                if (res.ok) {
+                    closeSignModal();
+                    fetchData(); // Refresh all
+                    // Re-open the staff modal to show it's gone
+                    const staffName = document.getElementById('staffModal').dataset.currentStaff;
+                    if (staffName) setTimeout(() => openStaffModal(staffName), 300);
+                } else {
+                    alert('Failed to submit signature.');
+                }
+            } catch (e) {
+                console.error('Sign error:', e);
+                alert('Network error while signing.');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Confirm & Sign';
+            }
+        });
+
+        window.addEventListener('click', (e) => {
+            const sModal = document.getElementById('staffModal');
+            const pModal = document.getElementById('proofViewerModal');
+            const rModal = document.getElementById('remoteSignModal');
+            if (e.target === sModal) closeModal();
+            if (e.target === pModal) closeProofModal();
+            if (e.target === rModal) closeSignModal();
+        });
+
+        function startRefresh() {
             clearInterval(refreshTimer);
-            countdown = 60;
+            countdown = 30;
             refreshTimer = setInterval(() => {
                 countdown--;
-                const el = document.getElementById('refreshCountdown');
-                if (el) el.textContent = countdown + 's';
-                if (countdown <= 0) {
-                    countdown = 60;
-                    loadAll();
+                setEl('countdown', countdown + 's');
+                if(countdown <= 0) {
+                    countdown = 30;
+                    fetchData();
                 }
             }, 1000);
         }
 
-        // ── Event Listeners ──────────────────────────────────────
-        document.getElementById('applyFilterBtn').addEventListener('click', () => { loadAll(); startRefreshTimer(); });
-        document.getElementById('clearFilterBtn').addEventListener('click', () => {
+        // Listeners
+        document.getElementById('applyBtn').addEventListener('click', fetchData);
+        document.getElementById('clearBtn').addEventListener('click', () => {
             document.getElementById('startDate').value = '';
             document.getElementById('endDate').value = '';
-            loadAll();
-            startRefreshTimer();
+            fetchData();
         });
-        document.getElementById('staffFilter').addEventListener('change', () => renderTable(allLogs));
-        document.getElementById('statusFilter').addEventListener('change', () => renderTable(allLogs));
+        document.getElementById('staffFilter').addEventListener('change', renderTable);
+        document.getElementById('statusFilter').addEventListener('change', renderTable);
+        document.getElementById('pendingCard').addEventListener('click', () => filterTable('', 'pending'));
 
-        // ── Init ─────────────────────────────────────────────────
-        loadAll();
-        startRefreshTimer();
+        // Init
+        fetchData();
+        startRefresh();
     </script>
 </body>
 </html>

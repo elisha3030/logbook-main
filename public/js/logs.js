@@ -133,7 +133,6 @@ class LogsManager {
         if (window.location.pathname.includes('dashboard.html') || document.getElementById('entriesTableBody')) {
             this.setupEventListeners();
             this.loadEntries();
-            this.updateStats();
         } else {
             console.log('📊 LogsManager: Not on dashboard page, skipping initialization');
         }
@@ -145,7 +144,6 @@ class LogsManager {
         const dateFilter = document.getElementById('dateFilter');
         const visitorTypeFilter = document.getElementById('visitorTypeFilter');
         const docStatusFilter = document.getElementById('docStatusFilter');
-        const insightTimeFilter = document.getElementById('insightTimeFilter');
         const exportBtn = document.getElementById('exportBtn');
         const refreshBtn = document.getElementById('refreshBtn');
         const printBtn = document.getElementById('printBtn');
@@ -157,63 +155,18 @@ class LogsManager {
         if (dateFilter)       dateFilter.addEventListener('change',   () => this.filterEntries());
         if (visitorTypeFilter) visitorTypeFilter.addEventListener('change', () => this.filterEntries());
         if (docStatusFilter)  docStatusFilter.addEventListener('change', () => this.filterEntries());
-        if (insightTimeFilter) insightTimeFilter.addEventListener('change', () => this.updateInsights());
         if (exportBtn)        exportBtn.addEventListener('click',    () => this.exportToCSV());
         if (generateReportBtn) generateReportBtn.addEventListener('click', () => this.generatePDFReport());
         if (deleteEntryBtn)   deleteEntryBtn.addEventListener('click', () => this.deleteCurrentEntry());
 
         if (refreshBtn) {
-            refreshBtn.addEventListener('click', () => {
-                this.loadEntries();
-                this.updateStats();
-            });
+            refreshBtn.addEventListener('click', () => this.loadEntries());
         }
 
         if (printBtn) { printBtn.addEventListener('click', () => this.printReport()); }
 
         const bulkClockOutBtn = document.getElementById('bulkClockOutBtn');
         if (bulkClockOutBtn) { bulkClockOutBtn.addEventListener('click', () => this.handleBulkClockOut()); }
-
-        // ── Bulk Approval panel ──────────────────────────────────
-        const openBulkBtn = document.getElementById('openBulkApprovalBtn');
-        if (openBulkBtn) {
-            openBulkBtn.addEventListener('click', () => {
-                const panel = document.getElementById('bulkApprovalPanel');
-                if (panel) {
-                    panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                    this.loadPendingRequests();
-                }
-            });
-        }
-
-        const selectAll = document.getElementById('selectAllPending');
-        if (selectAll) {
-            selectAll.addEventListener('change', (e) => {
-                document.querySelectorAll('.pending-row-check').forEach(cb => {
-                    cb.checked = e.target.checked;
-                });
-            });
-        }
-
-        const bulkApproveBtn = document.getElementById('bulkApproveBtn');
-        if (bulkApproveBtn) {
-            bulkApproveBtn.addEventListener('click', () => this.bulkStartService());
-        }
-
-        const bulkCompleteBtn = document.getElementById('bulkCompleteBtn');
-        if (bulkCompleteBtn) {
-            bulkCompleteBtn.addEventListener('click', () => this.bulkCompleteRequests());
-        }
-
-        const bulkClaimBtn = document.getElementById('bulkClaimBtn');
-        if (bulkClaimBtn) {
-            bulkClaimBtn.addEventListener('click', () => this.bulkClaimRequests());
-        }
-
-        const bulkMarkOutBtn = document.getElementById('bulkMarkOutBtn');
-        if (bulkMarkOutBtn) {
-            bulkMarkOutBtn.addEventListener('click', () => this.handleBulkClockOut());
-        }
 
         // ── Dropdown Toggles (Click instead of Hover) ──────────────────
         const actionsBtn = document.getElementById('actionsBtn');
@@ -312,8 +265,6 @@ class LogsManager {
             this.filteredEntries = [...this.entries];
             this.filterEntries(); // Correctly apply filters after loading
             this.updateStats();
-            this.updateInsights();
-            this.updateAnalytics();
 
         } catch (error) {
             console.error('❌ Error loading entries:', error);
@@ -344,7 +295,7 @@ class LogsManager {
         const activityValue    = activityFilter   ? activityFilter.value              : '';
         const dateValue        = dateFilter       ? dateFilter.value                  : '';
         const visitorTypeValue = visitorTypeFilter ? visitorTypeFilter.value          : '';
-        const docStatusValue   = docStatusFilter  ? docStatusFilter.value             : '';
+        const statusValue      = docStatusFilter  ? docStatusFilter.value.toLowerCase() : '';
 
         this.filteredEntries = this.entries.filter(entry => {
             // Search
@@ -393,13 +344,13 @@ class LogsManager {
                 else if (visitorTypeValue === 'student')  matchesVisitorType = isStudent;
             }
 
-            // Request status filter: pending / in-service / completed
-            let matchesDocStatus = true;
-            if (docStatusValue) {
-                matchesDocStatus = String(entry.status || '').toLowerCase() === String(docStatusValue).toLowerCase();
+            // Request status filter
+            let matchesStatus = true;
+            if (statusValue) {
+                matchesStatus = String(entry.status || 'pending').toLowerCase() === statusValue;
             }
 
-            return matchesSearch && matchesActivity && matchesDate && matchesVisitorType && matchesDocStatus;
+            return matchesSearch && matchesActivity && matchesDate && matchesVisitorType && matchesStatus;
         });
 
         this.currentPage = 1;
@@ -427,79 +378,40 @@ class LogsManager {
         }
 
         entriesTableBody.innerHTML = pageEntries.map(entry => {
-            let displayName    = entry.studentName   || '---';
-            let displaySubname = entry.studentNumber || '---';
-            let initial        = displayName.charAt(0);
-
-            if (entry.studentNumber === 'PARENT_VISIT' || (entry.activity && entry.activity.startsWith('[Parent]'))) {
-                const parts = entry.studentName.match(/^(.*?)(?:\s*\(\s*Visiting:\s*(.*?)\s*\))?$/);
-                if (parts) {
-                    displayName    = parts[1].trim();
-                    initial        = displayName.charAt(0);
-                    displaySubname = parts[2] ? `Visiting: ${parts[2].trim()}` : 'Parent Visit';
-                }
-            }
-
-            // ─ Request status pill (Pending / Processing / Completed)
-            const rs = String(entry.status || 'pending').toLowerCase();
-            let docStatusPill = '';
-            if (rs === 'pending') {
-                docStatusPill = `<span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 text-[9px] font-black uppercase tracking-wider border border-amber-200 dark:border-amber-800"><div class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></div>Pending</span>`;
-            } else if (rs === 'in-service') {
-                docStatusPill = `<span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-[9px] font-black uppercase tracking-wider border border-blue-200 dark:border-blue-800"><div class="w-1.5 h-1.5 rounded-full bg-blue-500"></div>Processing</span>`;
+            const displayName = entry.studentName || '---';
+            const displaySubname = entry.studentNumber || '';
+            const status = String(entry.status || 'pending').toLowerCase();
+            
+            let statusBadge = '';
+            if (status === 'completed') {
+                statusBadge = `<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700 text-[10px] font-black uppercase tracking-wider">Completed</span>`;
+            } else if (status === 'claimed') {
+                statusBadge = `<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-100 text-blue-700 text-[10px] font-black uppercase tracking-wider">Claimed</span>`;
+            } else if (status === 'in-service') {
+                statusBadge = `<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-100 text-blue-700 text-[10px] font-black uppercase tracking-wider">Processing</span>`;
             } else {
-                docStatusPill = `<span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-100 dark:bg-emerald-900/30 text-emerald-800 dark:text-emerald-400 text-[9px] font-black uppercase tracking-wider border border-emerald-300 dark:border-emerald-700"><div class="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>Completed</span>`;
-            }
-
-            // ─ Session status pill (checked in / checked out)
-            const sessionPill = entry.timeOutFormatted
-                ? `<span class="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 text-[9px] font-black uppercase tracking-wider"><div class="w-1.5 h-1.5 rounded-full bg-slate-400"></div>Checked Out</span>`
-                : `<span class="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-emerald-100 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 text-[9px] font-black uppercase tracking-wider"><div class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></div>Active</span>`;
-
-            // ─ Identification logic
-            const isStudent  = (entry.studentNumber !== 'PARENT_VISIT' && entry.studentNumber !== 'EMPLOYEE_LOG' && entry.studentNumber !== 'VISITOR_VISIT');
-            const isParent   = (entry.studentNumber === 'PARENT_VISIT');
-            const isEmployee = (entry.studentNumber === 'EMPLOYEE_LOG');
-            const isVisitor  = (entry.studentNumber === 'VISITOR_VISIT');
-
-            let roleBadge = '';
-            if (isStudent) {
-                roleBadge = `<span class="px-1.5 py-0.5 rounded bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 text-[8px] font-black uppercase tracking-tighter border border-blue-100 dark:border-blue-800/40 mb-1.5 inline-block">Student</span>`;
-            } else if (isParent) {
-                roleBadge = `<span class="px-1.5 py-0.5 rounded bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 text-[8px] font-black uppercase tracking-tighter border border-emerald-100 dark:border-emerald-800/40 mb-1.5 inline-block">Parent</span>`;
-            } else if (isEmployee) {
-                roleBadge = `<span class="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-[8px] font-black uppercase tracking-tighter border border-slate-200 dark:border-slate-600 mb-1.5 inline-block">Staff</span>`;
-            } else if (isVisitor) {
-                roleBadge = `<span class="px-1.5 py-0.5 rounded bg-violet-50 dark:bg-violet-900/20 text-violet-600 dark:text-violet-400 text-[8px] font-black uppercase tracking-tighter border border-violet-100 dark:border-violet-800/40 mb-1.5 inline-block">Guest</span>`;
+                statusBadge = `<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-100 text-amber-700 text-[10px] font-black uppercase tracking-wider animate-pulse">Pending</span>`;
             }
 
             return `
             <tr class="hover:bg-slate-50/80 dark:hover:bg-slate-700/50 transition-colors group">
                 <td class="px-8 py-5">
-                    <div class="flex items-center gap-3">
-                        <div class="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center text-slate-500 font-bold text-xs border border-white dark:border-slate-600 shadow-sm flex-shrink-0">${initial}</div>
-                        <div>
-                            ${roleBadge}
-                            <p class="font-bold text-slate-900 dark:text-white leading-none mb-1">${displayName}</p>
-                            <p class="text-[10px] font-mono text-slate-400 uppercase tracking-wider">${displaySubname}</p>
-                        </div>
+                    <p class="font-black text-slate-900 dark:text-white leading-none mb-1.5">${displayName}</p>
+                    <div class="flex items-center gap-2">
+                        <span class="text-[10px] font-mono text-slate-400 uppercase tracking-wider">${displaySubname}</span>
+                        ${entry.studentLevel ? `<span class="w-1 h-1 rounded-full bg-slate-300"></span><span class="text-[10px] font-bold text-slate-400 uppercase">${entry.studentLevel}</span>` : ''}
                     </div>
                 </td>
-                <td class="px-6 py-5 font-bold text-slate-600 dark:text-slate-400 text-xs text-center">
-                    ${(entry.studentNumber === 'PARENT_VISIT' || entry.studentNumber === 'EMPLOYEE_LOG' || entry.studentNumber === 'VISITOR_VISIT') ? '---' : (entry.yearLevel || entry['Year Level'] || '---')}
+                <td class="px-6 py-5 text-center">
+                    <span class="px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-500 text-[10px] font-black uppercase tracking-widest border border-slate-200 dark:border-slate-700">${entry.type || 'Student'}</span>
                 </td>
                 <td class="px-6 py-5">
-                    <p class="font-black text-slate-800 dark:text-white text-sm leading-tight">${entry.activity || '---'}</p>
-                    <p class="text-[10px] font-bold text-slate-400 flex items-center gap-1 mt-1">
-                        <i data-lucide="clock" class="w-2.5 h-2.5"></i>
-                        ${this.formatDateTime(entry.timestamp)}
-                    </p>
+                    <p class="text-sm font-bold text-slate-700 dark:text-slate-300">${entry.activity || '---'}</p>
                 </td>
-                <td class="px-6 py-5 text-center">${docStatusPill}</td>
-                <td class="px-6 py-5 text-center">${sessionPill}</td>
+                <td class="px-6 py-5 text-center">${statusBadge}</td>
                 <td class="px-8 py-5 text-right">
                     <div class="flex items-center justify-end gap-2">
-                        <button class="w-9 h-9 flex items-center justify-center rounded-xl bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-slate-400 hover:text-blue-600 hover:border-blue-200 hover:shadow-md transition-all" onclick="logsManager.viewEntry('${entry.id}')">
+                        <button class="w-9 h-9 flex items-center justify-center rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-400 hover:text-blue-600 hover:border-blue-200 hover:shadow-md transition-all" onclick="logsManager.viewEntry('${entry.id}')">
                             <i data-lucide="eye" class="w-4 h-4"></i>
                         </button>
                     </div>
@@ -574,53 +486,154 @@ class LogsManager {
 
     async updateStats() {
         try {
-            if (!document.getElementById('inCount') && !document.getElementById('pendingCount')) return;
+            const res = await fetch(`/api/logs/stats?officeId=${this.officeId}`);
+            const stats = await res.json();
+            
+            const set = (id, val) => {
+                const el = document.getElementById(id);
+                if (el) el.textContent = val;
+            };
 
-            const nowStr   = new Date().toLocaleDateString('en-CA');
-            const todayD   = new Date(nowStr);
-            const monthAgoD = new Date(todayD.getTime() - 30 * 24 * 60 * 60 * 1000);
-
-            let inCount = 0, pendingCount = 0, outCount = 0, monthCount = 0;
-
-            this.entries.forEach(entry => {
-                const entryDateStr = entry.date || (entry.timestamp ? entry.timestamp.split('T')[0] : '') || '';
-                const entryD = new Date(entryDateStr);
-
-                const rs = String(entry.status || 'pending').toLowerCase();
-                if (rs === 'pending') pendingCount++;
-                else if (rs === 'in-service') inCount++;
-                else if (rs === 'completed') outCount++;
-
-                if (entryD >= monthAgoD && entryD <= todayD) monthCount++;
-            });
-
-            const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
-            set('inCount',      inCount);
-            set('pendingCount', pendingCount);
-            set('outCount',     outCount);
-            set('monthCount',   monthCount);
-
-            // Also update header mini-badges
-            set('headerInCount',      inCount);
-            set('headerPendingCount', pendingCount);
-            set('headerOutCount',     outCount);
+            set('inCount', stats.todayIn || 0);
+            set('pendingCount', stats.todayPending || 0);
+            set('outCount', stats.todayOut || 0);
+            set('monthCount', stats.monthTotal || 0);
 
             // Show red badge on Bulk Approve button if pending > 0
             const badge = document.getElementById('pendingBadge');
             if (badge) {
-                badge.textContent = pendingCount;
-                badge.classList.toggle('hidden', pendingCount === 0);
+                badge.textContent = stats.todayPending;
+                badge.classList.toggle('hidden', stats.todayPending === 0);
             }
-
-            // Auto-load pending table if visible
-            const pendingBody = document.getElementById('pendingTableBody');
-            if (pendingBody && pendingBody.innerHTML.includes('animate-pulse')) {
-                await this.loadPendingRequests();
-            }
-
         } catch (error) {
             console.error('❌ Error updating stats:', error);
         }
+    }
+
+    async loadStaffStats() {
+        try {
+            const res = await fetch(`/api/staff-stats?officeId=${this.officeId}`);
+            if (!res.ok) throw new Error('Failed to fetch staff stats');
+            this.staffStats = await res.json();
+            this.renderStaffCards();
+            
+            const summTotal = document.getElementById('summTotal');
+            if (summTotal) summTotal.textContent = this.staffStats.length;
+
+            // Populate staff filter
+            const staffFilter = document.getElementById('staffFilter');
+            if (staffFilter) {
+                const currentVal = staffFilter.value;
+                staffFilter.innerHTML = '<option value="">All Staff</option>' + 
+                    this.staffStats.map(s => `<option value="${s.name}">${s.name}</option>`).join('');
+                staffFilter.value = currentVal;
+            }
+        } catch (e) {
+            console.error('Error loading staff stats:', e);
+        }
+    }
+
+    renderStaffCards() {
+        const grid = document.getElementById('staffGrid');
+        if (!grid) return;
+
+        if (this.staffStats.length === 0) {
+            grid.innerHTML = '<p class="col-span-full text-center py-10 text-slate-400 font-bold">No staff records found.</p>';
+            return;
+        }
+
+        grid.innerHTML = this.staffStats.map(s => {
+            const active = (Date.now() - new Date(s.lastActive).getTime()) < 3600000;
+            const completionRate = s.total > 0 ? Math.round((s.completed / s.total) * 100) : 0;
+            const initials = s.name.split(' ').filter(w => w.match(/^[A-Z]/)).slice(0,2).map(w=>w[0]).join('') || s.name[0];
+            
+            return `
+            <div class="bg-white dark:bg-slate-800 rounded-3xl border border-slate-200 dark:border-slate-700 p-6 shadow-sm hover:shadow-md transition-all">
+                <div class="flex items-start justify-between mb-4">
+                    <div class="flex items-center gap-3">
+                        <div class="w-12 h-12 rounded-2xl bg-violet-100 text-violet-600 flex items-center justify-center font-black text-lg">
+                            ${initials}
+                        </div>
+                        <div>
+                            <h3 class="font-black text-slate-900 dark:text-white text-sm leading-tight">${s.name}</h3>
+                            <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">Last: ${this.timeSince(s.lastActive)}</p>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${active ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}">
+                        <div class="w-1.5 h-1.5 rounded-full ${active ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}"></div>
+                        ${active ? 'Active' : 'Idle'}
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-3 gap-3 mb-4">
+                    <div class="bg-slate-50 dark:bg-slate-700/50 rounded-xl p-3 text-center">
+                        <p class="text-xl font-black text-slate-900 dark:text-white">${s.total}</p>
+                        <p class="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-0.5">Total</p>
+                    </div>
+                    <div class="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-3 text-center">
+                        <p class="text-xl font-black text-blue-600">${s.today}</p>
+                        <p class="text-[9px] font-black text-blue-400 uppercase tracking-widest mt-0.5">Today</p>
+                    </div>
+                    <div class="bg-amber-50 dark:bg-amber-900/20 rounded-xl p-3 text-center cursor-pointer hover:bg-amber-100 transition-colors" onclick="logsManager.filterByStaff('${s.name}', 'pending')">
+                        <p class="text-xl font-black text-amber-600">${s.pending}</p>
+                        <p class="text-[9px] font-black text-amber-400 uppercase tracking-widest mt-0.5">Pending</p>
+                    </div>
+                </div>
+
+                <div>
+                    <div class="flex justify-between items-center mb-1.5">
+                        <span class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Completion Rate</span>
+                        <span class="text-[10px] font-black text-emerald-600">${completionRate}%</span>
+                    </div>
+                    <div class="h-2 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
+                        <div class="h-full bg-emerald-500 rounded-full transition-all duration-700" style="width:${completionRate}%"></div>
+                    </div>
+                </div>
+                ${s.avgResponseMinutes !== null ? `<p class="text-[10px] text-slate-400 font-bold mt-2">Avg. service time: <span class="text-slate-600 dark:text-slate-300">${s.avgResponseMinutes} min</span></p>` : ''}
+            </div>`;
+        }).join('');
+        if (window.lucide) lucide.createIcons();
+    }
+
+    filterByStaff(staffName, status = '') {
+        const staffFilter = document.getElementById('staffFilter');
+        const statusFilter = document.getElementById('statusFilter');
+        if (staffFilter) staffFilter.value = staffName;
+        if (statusFilter && status) statusFilter.value = status;
+        this.filterEntries();
+        document.getElementById('entriesTableBody').scrollIntoView({ behavior: 'smooth' });
+    }
+
+    startAutoRefresh() {
+        if (this.refreshTimer) clearInterval(this.refreshTimer);
+        this.refreshCountdown = 30;
+        this.refreshTimer = setInterval(() => {
+            this.refreshCountdown--;
+            const countdownEl = document.getElementById('refreshCountdown');
+            if (countdownEl) countdownEl.textContent = this.refreshCountdown + 's';
+
+            if (this.refreshCountdown <= 0) {
+                this.refreshCountdown = 30;
+                this.loadEntries();
+                this.loadStaffStats();
+            }
+        }, 1000);
+    }
+
+    timeSince(iso) {
+        if (!iso) return 'Never';
+        const diff = Date.now() - new Date(iso).getTime();
+        const m = Math.floor(diff / 60000);
+        if (m < 1) return 'Just now';
+        if (m < 60) return `${m}m ago`;
+        const h = Math.floor(m / 60);
+        if (h < 24) return `${h}h ago`;
+        return `${Math.floor(h/24)}d ago`;
+    }
+
+    formatDateTime(iso) {
+        if (!iso) return '---';
+        return new Date(iso).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
     }
 
     // ── Load pending requests into bulk-approval panel ───────────

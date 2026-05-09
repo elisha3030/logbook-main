@@ -51,6 +51,44 @@ const upload = multer({
     limits: { fileSize: 5 * 1024 * 1024 } // 5MB limit
 });
 
+// Multer Storage for Student Documents
+const docStorage = multer.diskStorage({
+    destination: (req, file, cb) => {
+        const uploadDir = path.join(__dirname, 'public', 'uploads', 'documents');
+        if (!fs.existsSync(uploadDir)) {
+            fs.mkdirSync(uploadDir, { recursive: true });
+        }
+        cb(null, uploadDir);
+    },
+    filename: (req, file, cb) => {
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        cb(null, 'doc-' + uniqueSuffix + path.extname(file.originalname));
+    }
+});
+const uploadDocs = multer({
+    storage: docStorage,
+    limits: { fileSize: 10 * 1024 * 1024 } // 10MB limit for documents
+});
+
+// Multer Storage for Signed Documents
+const signedStorage = multer.diskStorage({
+    destination: (req, file, cb) => {
+        const uploadDir = path.join(__dirname, 'public', 'uploads', 'signed');
+        if (!fs.existsSync(uploadDir)) {
+            fs.mkdirSync(uploadDir, { recursive: true });
+        }
+        cb(null, uploadDir);
+    },
+    filename: (req, file, cb) => {
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        cb(null, 'signed-' + uniqueSuffix + path.extname(file.originalname));
+    }
+});
+const uploadSigned = multer({
+    storage: signedStorage,
+    limits: { fileSize: 10 * 1024 * 1024 } // 10MB limit
+});
+
 app.use('/uploads', express.static(path.join(__dirname, 'public', 'uploads')));
 
 // Initialize Firebase Admin
@@ -165,7 +203,12 @@ async function initializeLocalDb() {
             officeId TEXT,
             docStatus TEXT, -- Document Location: In / Out
             email TEXT,
+            softCopyPath TEXT,
+            signature TEXT,
+            signedAt TEXT,
+            remoteApproval INTEGER DEFAULT 0,
             synced INTEGER DEFAULT 0,
+            status TEXT DEFAULT 'pending',
             createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
         )
     `);
@@ -174,12 +217,18 @@ async function initializeLocalDb() {
     try { await localDb.exec('ALTER TABLE logs ADD COLUMN staff TEXT'); } catch (e) { }
     try { await localDb.exec('ALTER TABLE logs ADD COLUMN docStatus TEXT'); } catch (e) { }
     try { await localDb.exec('ALTER TABLE logs ADD COLUMN email TEXT'); } catch (e) { }
+    try { await localDb.exec('ALTER TABLE logs ADD COLUMN status TEXT'); } catch (e) { }
     try { await localDb.exec('ALTER TABLE students ADD COLUMN email TEXT'); } catch (e) { }
 
-    // Add status column if it doesn't exist
     try {
         await localDb.exec("ALTER TABLE logs ADD COLUMN status TEXT DEFAULT 'pending'");
     } catch (e) { /* column already exists */ }
+
+    // Add Remote Approval columns if they don't exist
+    try { await localDb.exec('ALTER TABLE logs ADD COLUMN softCopyPath TEXT'); } catch (e) { }
+    try { await localDb.exec('ALTER TABLE logs ADD COLUMN signature TEXT'); } catch (e) { }
+    try { await localDb.exec('ALTER TABLE logs ADD COLUMN signedAt TEXT'); } catch (e) { }
+    try { await localDb.exec('ALTER TABLE logs ADD COLUMN remoteApproval INTEGER DEFAULT 0'); } catch (e) { }
 
     // Add serviceStartTime column if it doesn't exist
     try {
@@ -332,7 +381,7 @@ const transporter = nodemailer.createTransport({
 });
 
 // Helper to send student notification emails for different stages
-async function sendStudentNotification(targetEmail, studentName, activity, type = 'ready') {
+async function sendStudentNotification(targetEmail, studentName, activity, type = 'ready', filePath = null) {
     if (!targetEmail || !process.env.SMTP_USER) {
         console.warn(`⚠️ Skipping email: ${!targetEmail ? 'Target email' : 'SMTP credentials'} missing.`);
         return;
@@ -372,6 +421,11 @@ async function sendStudentNotification(targetEmail, studentName, activity, type 
         headerText = 'Document Claimed';
         bodyText = `Your requested document (<strong>${activity}</strong>) has been successfully picked up from the <strong>${process.env.OFFICE_NAME || 'Engineering Office'}</strong>.`;
         instructions = 'Thank you for using our service!';
+    } else if (type === 'signed') {
+        subject = '✍️ Document Signed & Approved';
+        headerText = 'Document Signed';
+        bodyText = `Your requested document (<strong>${activity}</strong>) has been <strong>electronically signed and approved</strong> by <strong>${process.env.OFFICE_NAME || 'Engineering Office'}</strong>.`;
+        instructions = 'You can now view your status in the portal or proceed with the next steps as instructed by your department.';
     } else {
         return;
     }
@@ -389,6 +443,7 @@ async function sendStudentNotification(targetEmail, studentName, activity, type 
                     <p style="font-size: 16px; margin-top: 0;">Hi <strong>${studentName}</strong>,</p>
                     <p style="font-size: 15px;">${bodyText}</p>
                     <p style="font-size: 15px; font-weight: 600; color: #2563eb;">${instructions}</p>
+                    ${filePath ? `<p style="font-size: 14px; margin-top: 20px; padding: 12px; background: #f0f9ff; border-radius: 8px; border: 1px solid #bae6fd;">🖇️ Your <strong>signed document</strong> is attached to this email.</p>` : ''}
                     <hr style="border: 0; border-top: 1px solid #f1f5f9; margin: 32px 0;">
                     <div style="text-align: center;">
                         <p style="font-size: 12px; color: #94a3b8; margin-bottom: 0;">This is an automated notification from the <strong>Logbook System</strong>.</p>
@@ -396,7 +451,13 @@ async function sendStudentNotification(targetEmail, studentName, activity, type 
                     </div>
                 </div>
             </div>
-        `
+        `,
+        attachments: filePath ? [
+            {
+                filename: path.basename(filePath),
+                path: path.join(__dirname, 'public', filePath)
+            }
+        ] : []
     };
 
     try {
@@ -520,6 +581,32 @@ app.get('/api/config', (req, res) => {
     });
 });
 
+// Get log statistics for dashboard
+app.get('/api/logs/stats', async (req, res) => {
+    try {
+        const { officeId = 'engineering-office' } = req.query;
+        const today = new Date().toLocaleDateString('en-CA');
+        const monthPrefix = today.substring(0, 7); // YYYY-MM
+
+        const [todayIn, todayPending, todayOut, monthTotal] = await Promise.all([
+            localDb.get('SELECT COUNT(*) as count FROM logs WHERE officeId = ? AND date = ?', [officeId, today]),
+            localDb.get('SELECT COUNT(*) as count FROM logs WHERE officeId = ? AND date = ? AND (status IS NULL OR status = "pending")', [officeId, today]),
+            localDb.get('SELECT COUNT(*) as count FROM logs WHERE officeId = ? AND date = ? AND (status = "completed" OR status = "claimed")', [officeId, today]),
+            localDb.get('SELECT COUNT(*) as count FROM logs WHERE officeId = ? AND date LIKE ?', [officeId, monthPrefix + '%'])
+        ]);
+
+        res.json({
+            todayIn: todayIn.count || 0,
+            todayPending: todayPending.count || 0,
+            todayOut: todayOut.count || 0,
+            monthTotal: monthTotal.count || 0
+        });
+    } catch (error) {
+        console.error('Error fetching stats:', error);
+        res.status(500).json({ error: 'Failed to fetch statistics' });
+    }
+});
+
 // Get recent logs (Local-First; supports filtering)
 app.get('/api/logs', async (req, res) => {
     try {
@@ -538,7 +625,7 @@ app.get('/api/logs', async (req, res) => {
         if (req.session?.user) {
             const role = String(req.session.user.role || '').toLowerCase().trim();
             const isAdmin = role === 'admin' || role === 'superadmin' || !!req.session.user.isAdmin;
-            const isFaculty = role === 'faculty' || !!req.session.user.isFaculty;
+            const isFaculty = isFacultyRole(role) || !!req.session.user.isFaculty;
             const enforcedName = String(req.session.user.displayName || '').trim();
             if (isFaculty && !isAdmin) {
                 if (!enforcedName) {
@@ -547,9 +634,12 @@ app.get('/api/logs', async (req, res) => {
                 query += ` AND (
                     (studentNumber = 'EMPLOYEE_LOG' AND LOWER(TRIM(studentName)) = LOWER(TRIM(?)))
                     OR
-                    (studentNumber != 'EMPLOYEE_LOG' AND LOWER(TRIM(staff)) = LOWER(TRIM(?)))
+                    (studentNumber != 'EMPLOYEE_LOG' AND (
+                        LOWER(TRIM(COALESCE(staffEmail, ''))) = LOWER(TRIM(?))
+                        OR LOWER(TRIM(COALESCE(staff, ''))) = LOWER(TRIM(?))
+                    ))
                 )`;
-                params.push(enforcedName, enforcedName);
+                params.push(enforcedName, String(req.session.user.email || '').trim(), enforcedName);
             }
         }
 
@@ -631,7 +721,7 @@ app.patch('/api/logs/bulk-complete', async (req, res) => {
         (async () => {
             try {
                 for (const id of logIds) {
-                    const log = await localDb.get('SELECT activity, studentName, studentNumber, studentId, email FROM logs WHERE id = ?', id);
+                    const log = await localDb.get('SELECT activity, studentName, studentNumber, studentId, email, proofImage, softCopyPath FROM logs WHERE id = ?', id);
                     if (log && !isDocumentPickupActivity(log.activity)) {
                         let targetEmail = log.email;
                         if (!targetEmail) {
@@ -639,7 +729,9 @@ app.patch('/api/logs/bulk-complete', async (req, res) => {
                             if (student) targetEmail = student.email;
                         }
                         if (targetEmail) {
-                            sendStudentNotification(targetEmail, log.studentName, log.activity, 'ready');
+                            const isDoc = isDocumentRequestActivity(log.activity);
+                            const filePath = isDoc ? (log.proofImage || log.softCopyPath) : null;
+                            sendStudentNotification(targetEmail, log.studentName, log.activity, 'ready', filePath);
                         }
                     }
                 }
@@ -850,11 +942,15 @@ app.post('/api/students/register', async (req, res) => {
             return res.status(400).json({ error: 'All student fields are required' });
         }
 
+        // Auto-approve if registered by an authenticated admin/staff session.
+        // Kiosk self-registrations are unauthenticated and default to pending (0).
+        const isAdminRegistration = !!(req.session?.user);
+        const approvedVal = isAdminRegistration ? 1 : 0;
+
         // 1. Save to SQLite immediately (Local-First)
-        // New registrations default to NOT approved (0)
         await localDb.run(
-            'INSERT OR REPLACE INTO students (barcode, name, studentId, course, yearLevel, email, synced, isApproved) VALUES (?, ?, ?, ?, ?, ?, 0, 0)',
-            [barcode, name, studentId, Course, yearLevel, email]
+            'INSERT OR REPLACE INTO students (barcode, name, studentId, course, yearLevel, email, synced, isApproved) VALUES (?, ?, ?, ?, ?, ?, 0, ?)',
+            [barcode, name, studentId, Course, yearLevel, email, approvedVal]
         );
 
         res.json({ success: true });
@@ -1058,17 +1154,45 @@ app.get('/api/students/:barcode', async (req, res) => {
 });
 
 // Register student and log visit (Hybrid: Firestore + SQLite)
-app.post('/api/register-log', async (req, res) => {
+app.post('/api/register-log', uploadDocs.single('softCopy'), async (req, res) => {
     try {
-        const { studentData, logData, officeId = 'engineering-office' } = req.body;
+        const { studentData: studentDataRaw, logData: logDataRaw, officeId = 'engineering-office' } = req.body;
+        
+        // Parse JSON if sent as part of FormData
+        let studentData = typeof studentDataRaw === 'string' ? JSON.parse(studentDataRaw) : studentDataRaw;
+        const logData = typeof logDataRaw === 'string' ? JSON.parse(logDataRaw) : logDataRaw;
+
+        // Fallback for studentData if missing
+        if (!studentData && logData?.studentNumber) {
+            studentData = { 
+                barcode: logData.studentNumber, 
+                name: logData.studentName, 
+                studentId: logData.studentId,
+                course: logData.course,
+                yearLevel: logData.yearLevel,
+                email: logData.email
+            };
+        }
+
+        if (!studentData || !logData) {
+            return res.status(400).json({ error: 'Missing studentData or logData' });
+        }
+
         const logId = `local_${Date.now()}`;
         const timeIn = new Date().toISOString();
+        const softCopyPath = req.file ? `/uploads/documents/${req.file.filename}` : null;
 
         // 1. Write student to SQLite
-        // New registrations default to NOT approved (0)
         await localDb.run(
-            'INSERT OR REPLACE INTO students (barcode, name, studentId, course, yearLevel, email, synced, isApproved) VALUES (?, ?, ?, ?, ?, ?, 0, 0)',
-            [studentData.barcode, studentData.name, studentData.studentId, studentData.Course, studentData.yearLevel, studentData.email]
+            'INSERT OR REPLACE INTO students (barcode, name, studentId, course, yearLevel, email, synced, isApproved) VALUES (?, ?, ?, ?, ?, ?, 0, ?)',
+            [
+                studentData.barcode || studentData.id, 
+                studentData.name, 
+                studentData.studentId, 
+                studentData.course || studentData.Course, 
+                studentData.yearLevel || studentData['Year Level'] || studentData.yearLevel, 
+                studentData.email
+            ]
         );
 
         // 2. Write log to SQLite
@@ -1076,8 +1200,8 @@ app.post('/api/register-log', async (req, res) => {
 
         await localDb.run(
             `INSERT INTO logs 
-            (id, studentNumber, studentName, studentId, activity, staff, yearLevel, course, date, timeIn, staffEmail, officeId, synced, status, docStatus, email) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 'pending', ?, ?)`,
+            (id, studentNumber, studentName, studentId, activity, staff, yearLevel, course, date, timeIn, timeOut, staffEmail, officeId, synced, status, docStatus, email, softCopyPath) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?)`,
             [
                 logId,
                 logData.studentNumber,
@@ -1089,10 +1213,13 @@ app.post('/api/register-log', async (req, res) => {
                 logData.course,
                 logData.date,
                 timeIn,
+                logData.timeOut,
                 logData.staffEmail,
                 officeId,
+                logData.status || 'pending',
                 docStatus,
-                logData.email || studentData.email || null
+                logData.email || null,
+                softCopyPath
             ]
         );
 
@@ -1113,16 +1240,59 @@ app.post('/api/register-log', async (req, res) => {
         }
     } catch (error) {
         console.error('Error registering student/log:', error);
-        res.status(500).json({ error: 'Failed to process registration' });
+        if (!res.headersSent) {
+            res.status(500).json({ error: 'Failed to process registration', details: error.message });
+        }
     }
 });
 
+// Helper functions for activity classification
+function isDocumentRequestActivity(activity) {
+    if (!activity) return false;
+    const act = activity.toLowerCase();
+    const keywords = ['request', 'tor', 'cor', 'cog', 'certificate', 'certification', 'grades', 'clearance', 'diploma'];
+    return keywords.some(k => act.includes(k)) && !act.includes('submission') && !act.includes('pick-up');
+}
+
+function isDocumentSubmissionActivity(activity) {
+    if (!activity) return false;
+    const act = activity.toLowerCase();
+    return act.includes('submission') || act.includes('submit') || act.includes('pass');
+}
+
+// vLog helper for debugging
+function vLog(msg) {
+    if (process.env.DEBUG === 'true' || true) {
+        console.log(`[${new Date().toLocaleTimeString()}] ${msg}`);
+    }
+}
+
 // Log visit only (Local-First)
-app.post('/api/logs', async (req, res) => {
+app.post('/api/logs', uploadDocs.single('softCopy'), async (req, res) => {
     try {
-        const { logData, officeId = 'engineering-office' } = req.body;
+        const { logData: logDataRaw, officeId = 'engineering-office' } = req.body;
+        let logData;
+        if (typeof logDataRaw === 'string') {
+            try {
+                logData = JSON.parse(logDataRaw);
+            } catch (e) {
+                return res.status(400).json({ error: 'logData must be valid JSON' });
+            }
+        } else {
+            logData = logDataRaw;
+        }
+
+        if (!logData || typeof logData !== 'object') {
+            return res.status(400).json({ error: 'logData is required' });
+        }
+
+        if (!logData.studentNumber || !logData.studentName || !logData.activity) {
+            return res.status(400).json({ error: 'logData.studentNumber, logData.studentName, and logData.activity are required' });
+        }
+
         const logId = `local_${Date.now()}`;
         const timeIn = new Date().toISOString();
+        const softCopyPath = req.file ? `/uploads/documents/${req.file.filename}` : null;
         // All kiosk entries are document requests — start as Incoming
         const docStatus = logData.docStatus || 'In';
 
@@ -1131,8 +1301,8 @@ app.post('/api/logs', async (req, res) => {
 
         await localDb.run(
             `INSERT INTO logs 
-            (id, studentNumber, studentName, studentId, activity, staff, yearLevel, course, date, timeIn, timeOut, staffEmail, officeId, synced, status, docStatus, email) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?)`,
+            (id, studentNumber, studentName, studentId, activity, staff, yearLevel, course, date, timeIn, timeOut, staffEmail, officeId, synced, status, docStatus, email, softCopyPath) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?)`,
             [
                 logId,
                 logData.studentNumber,
@@ -1149,7 +1319,8 @@ app.post('/api/logs', async (req, res) => {
                 officeId,
                 status,
                 docStatus,
-                logData.email || null
+                logData.email || null,
+                softCopyPath
             ]
         );
 
@@ -1252,6 +1423,33 @@ app.patch('/api/logs/:id', async (req, res) => {
     }
 });
 
+// DELETE a specific log entry (Admin only)
+app.delete('/api/logs/:id', requireAdmin, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { staffEmail } = req.body || {};
+
+        // Always delete locally first
+        const result = await localDb.run('DELETE FROM logs WHERE id = ?', [id]);
+        
+        if (result.changes === 0) {
+            return res.status(404).json({ error: 'Log not found' });
+        }
+
+        if (staffEmail) {
+            await writeAudit(staffEmail, 'log_deleted', { id });
+        }
+
+        res.json({ success: true });
+
+        // Trigger cloud sync (reconciliation will handle the deletion)
+        syncToCloud();
+    } catch (error) {
+        console.error('Error deleting log:', error);
+        res.status(500).json({ error: 'Failed to delete log' });
+    }
+});
+
 // Claim / release a completed document request (Student pick-up action)
 app.patch('/api/logs/:id/claim', async (req, res) => {
     try {
@@ -1296,50 +1494,102 @@ app.patch('/api/logs/:id/claim', async (req, res) => {
         res.status(500).json({ error: 'Failed to claim document request' });
     }
 });
-// Mark log as completed (Staff/Teacher action)
-app.patch('/api/logs/:id/complete', async (req, res) => {
+// Remote Sign & Complete (Staff action)
+app.patch('/api/logs/:id/sign', async (req, res) => {
     try {
         const { id } = req.params;
-        const { staffName } = req.body;
+        const { staffName, signature } = req.body; // signature is base64
+        
+        if (!signature) return res.status(400).json({ error: 'Signature is required' });
 
-        const existing = await localDb.get('SELECT activity, docStatus, studentNumber, studentId, studentName, email FROM logs WHERE id = ?', id);
+        const existing = await localDb.get('SELECT activity, studentName, studentNumber, studentId, email, proofImage, softCopyPath FROM logs WHERE id = ?', id);
         if (!existing) return res.status(404).json({ error: 'Log not found' });
 
         const timeOut = new Date().toISOString();
+        const signedAt = new Date().toISOString();
 
-        if (isDocumentRequestActivity(existing.activity)) {
-            // Completing a document request means "ready for pick-up"; location MUST be IN for student to see it.
-            await localDb.run(
-                "UPDATE logs SET status = 'completed', docStatus = 'In', timeOut = COALESCE(timeOut, ?), staff = CASE WHEN staff IS NOT NULL AND staff != '' THEN staff ELSE ? END, synced = 0 WHERE id = ?",
-                [timeOut, staffName || 'Staff', id]
-            );
-        } else {
-            await localDb.run(
-                "UPDATE logs SET status = 'completed', docStatus = 'Out', timeOut = COALESCE(timeOut, ?), staff = CASE WHEN staff IS NOT NULL AND staff != '' THEN staff ELSE ? END, synced = 0 WHERE id = ?",
-                [timeOut, staffName || 'Staff', id]
-            );
-        }
+        // Update with signature and mark as remote approval
+        await localDb.run(
+            `UPDATE logs SET 
+                status = 'completed', 
+                docStatus = 'In', 
+                timeOut = COALESCE(timeOut, ?), 
+                staff = ?, 
+                signature = ?, 
+                signedAt = ?, 
+                remoteApproval = 1,
+                synced = 0 
+            WHERE id = ?`,
+            [timeOut, staffName || 'Staff', signature, signedAt, id]
+        );
 
         res.json({ success: true });
         syncToCloud();
 
-        // Send email alert when faculty marks session as complete
-        if (!isDocumentPickupActivity(existing.activity)) {
-            let targetEmail = existing.email;
+        // Notification workflow
+        let targetEmail = existing.email;
+        if (!targetEmail) {
+            const student = await localDb.get('SELECT email FROM students WHERE barcode = ? OR studentId = ?', [existing.studentNumber, existing.studentId]);
+            if (student) targetEmail = student.email;
+        }
+        
+        if (targetEmail) {
+            const isDoc = isDocumentRequestActivity(existing.activity);
+            const filePath = isDoc ? (existing.proofImage || existing.softCopyPath) : null;
+            sendStudentNotification(targetEmail, existing.studentName, existing.activity, 'signed', filePath);
+        }
+    } catch (error) {
+        console.error('Error signing log remotely:', error);
+        res.status(500).json({ error: 'Failed to sign and complete log' });
+    }
+});
+
+// Upload Signed Document (Manual Return)
+app.post('/api/logs/:id/upload-signed', uploadSigned.single('signedDoc'), async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { staffName } = req.body;
+        
+        if (!req.file) {
+            return res.status(400).json({ error: 'No signed file provided' });
+        }
+
+        const signedPath = `/uploads/signed/${req.file.filename}`;
+        const timeOut = new Date().toISOString();
+        const signedAt = new Date().toISOString();
+
+        // Update log status to completed and store the signed path
+        await localDb.run(
+            `UPDATE logs SET 
+                status = 'completed', 
+                docStatus = 'In', 
+                timeOut = COALESCE(timeOut, ?), 
+                staff = CASE WHEN staff IS NOT NULL AND staff != '' THEN staff ELSE ? END,
+                proofImage = ?, -- Reuse proofImage field or we could use signature path
+                signedAt = ?, 
+                synced = 0 
+            WHERE id = ?`,
+            [timeOut, staffName || 'Staff', signedPath, signedAt, id]
+        );
+
+        res.json({ success: true, signedPath });
+        syncToCloud();
+
+        // Notify student with the signed document attached
+        const log = await localDb.get('SELECT activity, studentName, studentNumber, studentId, email FROM logs WHERE id = ?', id);
+        if (log) {
+            let targetEmail = log.email;
             if (!targetEmail) {
-                const student = await localDb.get(
-                    'SELECT email FROM students WHERE barcode = ? OR studentId = ?',
-                    [existing.studentNumber, existing.studentId]
-                );
+                const student = await localDb.get('SELECT email FROM students WHERE barcode = ? OR studentId = ?', [log.studentNumber, log.studentId]);
                 if (student) targetEmail = student.email;
             }
             if (targetEmail) {
-                sendStudentNotification(targetEmail, existing.studentName, existing.activity, 'ready');
+                sendStudentNotification(targetEmail, log.studentName, log.activity, 'signed', signedPath);
             }
         }
     } catch (error) {
-        console.error('Error completing log locally:', error);
-        res.status(500).json({ error: 'Failed to complete log' });
+        console.error('Error uploading signed document:', error);
+        res.status(500).json({ error: 'Failed to upload signed document' });
     }
 });
 
@@ -1373,6 +1623,68 @@ app.patch('/api/logs/:id/service-start', async (req, res) => {
     } catch (error) {
         console.error('Error starting service locally:', error);
         res.status(500).json({ error: 'Failed to start service' });
+    }
+});
+
+// Mark session as completed (Faculty/Staff action)
+app.patch('/api/logs/:id/complete', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { staffName } = req.body || {};
+
+        const log = await localDb.get('SELECT id, activity, studentName, studentNumber, studentId, email, docStatus, proofImage, softCopyPath FROM logs WHERE id = ?', id);
+        if (!log) return res.status(404).json({ error: 'Log not found' });
+
+        const timeOut = new Date().toISOString();
+
+        if (isDocumentRequestActivity(log.activity) || isDocumentSubmissionActivity(log.activity)) {
+            // Completed, but document remains in-office (In) until claimed/released.
+            await localDb.run(
+                "UPDATE logs SET timeOut = COALESCE(timeOut, ?), status = 'completed', docStatus = COALESCE(docStatus, 'In'), staff = CASE WHEN staff IS NOT NULL AND staff != '' THEN staff ELSE ? END, synced = 0 WHERE id = ?",
+                [timeOut, staffName || 'Staff', id]
+            );
+        } else if (isDocumentPickupActivity(log.activity)) {
+            // Pick-up completes the transaction and document leaves the office.
+            await localDb.run(
+                "UPDATE logs SET timeOut = COALESCE(timeOut, ?), status = 'completed', docStatus = 'Out', staff = CASE WHEN staff IS NOT NULL AND staff != '' THEN staff ELSE ? END, synced = 0 WHERE id = ?",
+                [timeOut, staffName || 'Staff', id]
+            );
+        } else {
+            // Standard office visits: completed implies student is out.
+            await localDb.run(
+                "UPDATE logs SET timeOut = COALESCE(timeOut, ?), status = 'completed', docStatus = 'Out', staff = CASE WHEN staff IS NOT NULL AND staff != '' THEN staff ELSE ? END, synced = 0 WHERE id = ?",
+                [timeOut, staffName || 'Staff', id]
+            );
+        }
+
+        if (staffName) {
+            await writeAudit(staffName, 'complete_log', { id });
+        }
+
+        res.json({ success: true });
+        syncToCloud();
+
+        // Notify student when their request is ready (best-effort)
+        (async () => {
+            try {
+                if (isDocumentPickupActivity(log.activity)) return;
+                let targetEmail = log.email;
+                if (!targetEmail) {
+                    const student = await localDb.get('SELECT email FROM students WHERE barcode = ? OR studentId = ?', [log.studentNumber, log.studentId]);
+                    if (student) targetEmail = student.email;
+                }
+                if (targetEmail) {
+                    const isDoc = isDocumentRequestActivity(log.activity);
+                    const filePath = isDoc ? (log.proofImage || log.softCopyPath) : null;
+                    sendStudentNotification(targetEmail, log.studentName, log.activity, 'ready', filePath);
+                }
+            } catch (err) {
+                console.error('❌ Error sending completion email:', err);
+            }
+        })();
+    } catch (error) {
+        console.error('Error completing log locally:', error);
+        res.status(500).json({ error: 'Failed to complete log' });
     }
 });
 
@@ -1889,7 +2201,8 @@ function isAdminRole(role) {
 }
 
 function isFacultyRole(role) {
-    return String(role || '').toLowerCase() === 'faculty';
+    const r = String(role || '').toLowerCase();
+    return r === 'faculty' || r === 'staff' || r === 'secretary';
 }
 
 // POST /api/auth/cache-session
@@ -2060,7 +2373,7 @@ app.get('/api/auth/session', (req, res) => {
         // Normalize role flags on read to avoid stale/mis-set values.
         const u = req.session.user;
         const normalizedRole = String(u.role || '').toLowerCase().trim();
-        const isFaculty = normalizedRole === 'faculty';
+        const isFaculty = isFacultyRole(normalizedRole);
         const isAdmin = normalizedRole === 'admin' || normalizedRole === 'superadmin';
 
         if (normalizedRole) {
@@ -2168,8 +2481,15 @@ app.put('/api/auth/admins/:email', requireAdmin, async (req, res) => {
 
         if (role) {
             const normalizedRole = String(role).toLowerCase().trim();
-            if (normalizedRole === 'faculty' && !String(displayName || '').trim()) {
-                return res.status(400).json({ error: 'Faculty accounts require a display name.' });
+            if (normalizedRole === 'faculty') {
+                // Check display name: use the new one from request, or fall back to existing DB value
+                const effectiveName = String(displayName || '').trim();
+                if (!effectiveName) {
+                    const dbRecord = await localDb.get('SELECT displayName FROM admin_users WHERE email = ?', targetEmail);
+                    if (!dbRecord || !String(dbRecord.displayName || '').trim()) {
+                        return res.status(400).json({ error: 'Faculty accounts require a display name.' });
+                    }
+                }
             }
             await localDb.run(
                 'UPDATE admin_users SET role = ?, updatedAt = CURRENT_TIMESTAMP WHERE email = ?',
@@ -2446,25 +2766,31 @@ async function pullLogsFromCloud({ full = false } = {}) {
             const timeOut = d.timeOut ? (d.timeOut.toDate ? d.timeOut.toDate().toISOString() : d.timeOut) : null;
             const createdAt = d.createdAt ? (d.createdAt.toDate ? d.createdAt.toDate().toISOString() : d.createdAt) : null;
 
-            const existing = await localDb.get('SELECT id, synced, timeOut FROM logs WHERE id = ?', doc.id);
+            const existing = await localDb.get('SELECT id, synced, timeOut, status FROM logs WHERE id = ?', doc.id);
 
             if (existing) {
-                // Only update timeOut if: the local record is already synced (cloud is source
-                // of truth) AND the cloud has a timeOut the local record lacks.
-                if (existing.synced === 1 && !existing.timeOut && timeOut) {
-                    await localDb.run(
-                        'UPDATE logs SET timeOut = ? WHERE id = ?',
-                        [timeOut, doc.id]
-                    );
-                    updated++;
+                // For synced records, update key fields from cloud (status, timeOut, serviceStartTime, proofImage)
+                if (existing.synced === 1) {
+                    const serviceStartTime = d.serviceStartTime ? (d.serviceStartTime.toDate ? d.serviceStartTime.toDate().toISOString() : d.serviceStartTime) : null;
+                    const cloudStatus = d.status || 'pending';
+                    const anyUpdate = (!existing.timeOut && timeOut) || (existing.status !== cloudStatus);
+                    if (anyUpdate) {
+                        await localDb.run(
+                            'UPDATE logs SET timeOut = COALESCE(timeOut, ?), status = ?, serviceStartTime = COALESCE(serviceStartTime, ?), proofImage = COALESCE(proofImage, ?) WHERE id = ?',
+                            [timeOut, cloudStatus, serviceStartTime, d.proofImage || null, doc.id]
+                        );
+                        updated++;
+                    }
                 }
             } else {
-                // New record — insert it
+                // New record — insert it (include all known columns)
+                const serviceStartTime = d.serviceStartTime ? (d.serviceStartTime.toDate ? d.serviceStartTime.toDate().toISOString() : d.serviceStartTime) : null;
                 await localDb.run(
                     `INSERT INTO logs
                      (id, studentNumber, studentName, studentId, activity, staff, yearLevel, course,
-                      date, timeIn, timeOut, staffEmail, officeId, docStatus, email, synced, createdAt)
-                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)`,
+                      date, timeIn, timeOut, staffEmail, officeId, docStatus, email,
+                      status, serviceStartTime, proofImage, synced, createdAt)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)`,
                     [
                         doc.id,
                         d.studentNumber, d.studentName, d.studentId,
@@ -2474,6 +2800,9 @@ async function pullLogsFromCloud({ full = false } = {}) {
                         d.staffEmail, officeId,
                         d.docStatus || null,
                         d.email || null,
+                        d.status || 'pending',
+                        serviceStartTime,
+                        d.proofImage || null,
                         createdAt
                     ]
                 );
@@ -2589,14 +2918,24 @@ async function startupSync() {
     }
 }
 
+// Global Error Handler
+app.use((err, req, res, next) => {
+    console.error('❌ UNHANDLED ERROR:', err);
+    if (!res.headersSent) {
+        res.status(500).json({ 
+            error: 'Internal Server Error', 
+            details: err.message,
+            stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+        });
+    }
+});
+
 // Initialize and start server
 initializeLocalDb().then(() => {
     app.listen(PORT, () => {
         console.log(`🚀 Server running on http://localhost:${PORT}`);
 
         // Non-blocking background tasks
-        // ⚠️ Order matters: push pending local changes FIRST, then pull from cloud
-        // This prevents pending edits from being overwritten on restart
         initializeAdmin();
 
         // Full bidirectional sync on every startup, then periodic heartbeat

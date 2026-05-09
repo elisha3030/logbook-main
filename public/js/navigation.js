@@ -25,7 +25,7 @@ async function loadFacultySidebar() {
 
     const role = String(sessionUser?.role || '').toLowerCase().trim();
     // Role string is source-of-truth; flags are treated as hints.
-    const isFaculty = role === 'faculty' || !!sessionUser?.isFaculty;
+    const isFaculty = role === 'faculty' || role === 'staff' || role === 'secretary' || !!sessionUser?.isFaculty;
     const isAdmin = (role === 'admin' || role === 'superadmin') || (!!sessionUser?.isAdmin && !isFaculty);
 
     // Determine current page for active-state styling

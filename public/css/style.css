@@ -896,3 +896,18 @@ html:not(.dark) .shadow-2xl {
         width: 100%;
     }
 }
+/* Table layout fixes */
+.responsive-table-container table {
+    table-layout: auto;
+    width: 100%;
+}
+
+.responsive-table-container th,
+.responsive-table-container td {
+    white-space: nowrap;
+}
+
+.responsive-table-container td p {
+    white-space: normal;
+    max-width: 300px;
+}

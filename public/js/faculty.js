@@ -63,7 +63,8 @@ function escape(str) {
         .replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;');
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
 }
 
 function formatTime(iso) {
@@ -85,27 +86,167 @@ function viewProof(url) {
     const modal = document.getElementById('proofViewerModal');
     const img = document.getElementById('proofImageElement');
     const iframe = document.getElementById('proofPdfElement');
-    if (modal) {
-        if (url.toLowerCase().endsWith('.pdf')) {
-            if (img) img.classList.add('hidden');
-            if (iframe) {
-                iframe.src = url;
-                iframe.classList.remove('hidden');
-            }
-        } else {
-            if (iframe) iframe.classList.add('hidden');
-            if (img) {
-                img.src = url;
-                img.classList.remove('hidden');
-            }
-        }
+    const noMsg = document.getElementById('noProofMessage');
+    if (!modal) return;
+
+    img?.classList.add('hidden');
+    iframe?.classList.add('hidden');
+    noMsg?.classList.add('hidden');
+
+    const safeUrl = String(url || '').trim();
+    if (!safeUrl) {
+        noMsg?.classList.remove('hidden');
         modal.classList.remove('hidden');
         if (window.lucide) window.lucide.createIcons();
+        return;
     }
+
+    const downloadBtn = document.getElementById('downloadProofBtn');
+    if (downloadBtn) {
+        if (safeUrl) {
+            downloadBtn.href = safeUrl;
+            downloadBtn.classList.remove('hidden');
+        } else {
+            downloadBtn.classList.add('hidden');
+        }
+    }
+
+    if (safeUrl.toLowerCase().endsWith('.pdf')) {
+        if (iframe) {
+            iframe.src = safeUrl;
+            iframe.classList.remove('hidden');
+        }
+    } else {
+        if (img) {
+            img.src = safeUrl;
+            img.classList.remove('hidden');
+        }
+    }
+
+    modal.classList.remove('hidden');
+    if (window.lucide) window.lucide.createIcons();
 }
 
 // Make globally available for onclick
 window.viewProof = viewProof;
+
+// ----------------------------------------------------------------
+// Remote Signing (Faculty Approval)
+// ----------------------------------------------------------------
+let currentSignLogId = null;
+let signatureHasInk = false;
+let signatureIsSetup = false;
+
+function setupSignatureCanvas() {
+    if (signatureIsSetup) return;
+
+    const canvas = document.getElementById('signatureCanvas');
+    if (!canvas) return;
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const state = {
+        drawing: false,
+        lastX: 0,
+        lastY: 0
+    };
+
+    const getPoint = (evt) => {
+        const rect = canvas.getBoundingClientRect();
+        const clientX = evt.touches ? evt.touches[0].clientX : evt.clientX;
+        const clientY = evt.touches ? evt.touches[0].clientY : evt.clientY;
+        return {
+            x: clientX - rect.left,
+            y: clientY - rect.top
+        };
+    };
+
+    const start = (evt) => {
+        evt.preventDefault();
+        const p = getPoint(evt);
+        state.drawing = true;
+        state.lastX = p.x;
+        state.lastY = p.y;
+    };
+
+    const move = (evt) => {
+        if (!state.drawing) return;
+        evt.preventDefault();
+        const p = getPoint(evt);
+        ctx.beginPath();
+        ctx.moveTo(state.lastX, state.lastY);
+        ctx.lineTo(p.x, p.y);
+        ctx.stroke();
+        state.lastX = p.x;
+        state.lastY = p.y;
+        signatureHasInk = true;
+    };
+
+    const end = (evt) => {
+        evt.preventDefault();
+        state.drawing = false;
+    };
+
+    canvas.addEventListener('pointerdown', start);
+    canvas.addEventListener('pointermove', move);
+    canvas.addEventListener('pointerup', end);
+    canvas.addEventListener('pointercancel', end);
+    canvas.addEventListener('pointerleave', end);
+
+    // Touch fallback (older browsers)
+    canvas.addEventListener('touchstart', start, { passive: false });
+    canvas.addEventListener('touchmove', move, { passive: false });
+    canvas.addEventListener('touchend', end, { passive: false });
+
+    signatureIsSetup = true;
+}
+
+function resizeSignatureCanvas() {
+    const canvas = document.getElementById('signatureCanvas');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const ratio = Math.max(window.devicePixelRatio || 1, 1);
+    const w = canvas.offsetWidth;
+    const h = canvas.offsetHeight;
+    canvas.width = Math.floor(w * ratio);
+    canvas.height = Math.floor(h * ratio);
+    ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+    ctx.lineWidth = 2.5;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = 'rgb(30, 41, 59)';
+}
+
+function clearSignatureCanvas() {
+    const canvas = document.getElementById('signatureCanvas');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    signatureHasInk = false;
+}
+
+function openSignModal(logId) {
+    currentSignLogId = logId;
+    const modal = document.getElementById('remoteSignModal');
+    if (!modal) return;
+    modal.classList.remove('hidden');
+    setupSignatureCanvas();
+    resizeSignatureCanvas();
+    clearSignatureCanvas();
+    if (window.lucide) window.lucide.createIcons();
+}
+
+function closeSignModal() {
+    const modal = document.getElementById('remoteSignModal');
+    modal?.classList.add('hidden');
+    currentSignLogId = null;
+}
+
+window.openSignModal = openSignModal;
 
 // ----------------------------------------------------------------
 // Employee Clock-out (Faculty Mode)
@@ -560,6 +701,8 @@ async function renderQueue() {
         }
 
         let actionBtn = '';
+        const isDocSubmission = actLower.startsWith('document submission');
+        const isEligibleForRemoteSign = (isDocRequest || isDocSubmission);
         if (log.studentNumber === 'EMPLOYEE_LOG') {
             actionBtn = `<span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-50 text-blue-600 text-[10px] font-black uppercase tracking-wider border border-blue-200">
                              <div class="w-1.5 h-1.5 rounded-full bg-blue-500"></div> On-Site
@@ -570,31 +713,47 @@ async function renderQueue() {
                    <i data-lucide="play" class="w-3.5 h-3.5"></i> Start Service
                </button>`;
         } else if (isInService) {
-            actionBtn = `<button onclick="markComplete('${escape(log.id)}')"
+            if (isEligibleForRemoteSign) {
+                const hasAttachment = !!String(log.softCopyPath || '').trim();
+                if (hasAttachment) {
+                    actionBtn = `<button onclick="handleSignedReturn('${escape(log.id)}')"
+                       class="complete-btn bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-4 py-2 rounded-xl transition-all flex items-center gap-2 ml-auto shadow-sm shadow-emerald-500/20">
+                       <i data-lucide="upload-cloud" class="w-3.5 h-3.5"></i> Upload Signed
+                    </button>`;
+                } else {
+                    actionBtn = `<button onclick="markComplete('${escape(log.id)}')"
+                       class="complete-btn bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-4 py-2 rounded-xl transition-all flex items-center gap-2 ml-auto shadow-sm shadow-emerald-500/20">
+                       <i data-lucide="check-circle" class="w-3.5 h-3.5"></i> Mark Done
+                    </button>`;
+                }
+            } else {
+                actionBtn = `<button onclick="markComplete('${escape(log.id)}')"
                    class="complete-btn bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-4 py-2 rounded-xl transition-all flex items-center gap-2 ml-auto shadow-sm shadow-emerald-500/20">
                    <i data-lucide="check-circle" class="w-3.5 h-3.5"></i> Mark Done
                </button>`;
+            }
         } else {
             actionBtn = `<span class="text-[11px] text-slate-400 italic block text-right">Completed</span>`;
         }
 
         // Proof Action Button
         let proofBtn = '';
-        const isDocRelated = (log.activity || '').toLowerCase().includes('doc');
+        const attachmentPath = log.softCopyPath || log.proofImage || '';
+        const hasAttachment = !!String(attachmentPath || '').trim();
         
-        if ((isInService || isCompleted) && isDocRelated) {
-            if (log.proofImage) {
-                proofBtn = `<button onclick="viewProof('${log.proofImage}')" 
-                        class="px-3 py-1.5 rounded-xl bg-violet-50 dark:bg-violet-900/30 text-violet-600 dark:text-violet-400 hover:bg-violet-100 dark:hover:bg-violet-900/50 transition-all shadow-sm flex items-center gap-2 text-[10px] font-black uppercase tracking-wider" title="View Document">
-                        <i data-lucide="file-check" class="w-3.5 h-3.5"></i>
-                        <span>View Proof</span>
-                    </button>`;
-            } else {
-                proofBtn = `<button onclick="handleProofUpload('${escape(log.id)}')" 
-                        class="p-2 rounded-xl bg-slate-50 dark:bg-slate-700 text-slate-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-all" title="Upload Proof">
-                        <i data-lucide="upload" class="w-4 h-4"></i>
-                    </button>`;
-            }
+        // If there's an attachment, ALWAYS show the view button regardless of the activity name
+        if (hasAttachment) {
+            const label = log.softCopyPath ? 'View Attachment' : 'View Proof';
+            proofBtn = `<button onclick="viewProof('${escape(attachmentPath)}')" 
+                    class="px-3 py-1.5 rounded-xl bg-violet-50 dark:bg-violet-900/30 text-violet-600 dark:text-violet-400 hover:bg-violet-100 dark:hover:bg-violet-900/50 transition-all shadow-sm flex items-center gap-2 text-[10px] font-black uppercase tracking-wider" title="View Document">
+                    <i data-lucide="file" class="w-3.5 h-3.5"></i>
+                    <span>${label}</span>
+                </button>`;
+        } else if ((isInService || isCompleted) && (isDocRequest || isDocSubmission)) {
+            proofBtn = `<button onclick="handleProofUpload('${escape(log.id)}')" 
+                    class="p-2 rounded-xl bg-slate-50 dark:bg-slate-700 text-slate-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-all" title="Upload Proof">
+                    <i data-lucide="upload" class="w-4 h-4"></i>
+                </button>`;
         }
 
         return `
@@ -818,7 +977,11 @@ window.startService = async function (logId) {
 // ----------------------------------------------------------------
 window.markComplete = async function (logId) {
     const btn = document.querySelector(`button[onclick="markComplete('${logId}')"]`);
-    if (btn) { btn.disabled = true; btn.innerHTML = `<i data-lucide="loader" class="w-3.5 h-3.5 animate-spin"></i> Saving…`; lucide.createIcons(); }
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = `<i data-lucide="loader" class="w-3.5 h-3.5 animate-spin"></i> Saving…`;
+        lucide.createIcons();
+    }
 
     try {
         const res = await fetch(`/api/logs/${logId}/complete`, {
@@ -826,11 +989,27 @@ window.markComplete = async function (logId) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ staffName })
         });
-        if (!res.ok) throw new Error('Failed');
+
+        if (!res.ok) {
+            let message = `Update failed (HTTP ${res.status})`;
+            try {
+                const data = await res.json();
+                if (data?.error) message = data.error;
+            } catch (_) {
+                // ignore JSON parse issues
+            }
+            throw new Error(message);
+        }
         showToast('Session marked as completed!');
         await renderQueue();
     } catch (e) {
-        showToast('Update failed', 'error');
+        console.error('❌ markComplete error:', e);
+        showToast(e?.message || 'Update failed', 'error');
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = `<i data-lucide="check" class="w-3.5 h-3.5"></i> Mark as done`;
+            lucide.createIcons();
+        }
     }
 };
 
@@ -942,12 +1121,13 @@ window.updateDocStatus = async function (logId, newStatus) {
             showToast(`Status updated to ${newStatus}`);
             renderQueue();
         } else {
-            throw new Error('Update failed');
-        }
-    } catch (e) {
-        console.error('Status update error:', e);
-        showToast('Failed to update document status.', 'error');
+        const data = await res.json();
+        throw new Error(data.error || 'Update failed');
     }
+} catch (e) {
+    console.error('Status update error:', e);
+    showToast(e.message || 'Failed to update document status.', 'error');
+}
 };
 
 // ----------------------------------------------------------------
@@ -997,6 +1177,54 @@ async function handleFileSelected(event) {
         showToast('Failed to upload proof', 'error');
     } finally {
         currentUploadLogId = null;
+    }
+}
+
+// ----------------------------------------------------------------
+// Signed Document Return Handling
+// ----------------------------------------------------------------
+let currentSignReturnLogId = null;
+
+window.handleSignedReturn = function(logId) {
+    currentSignReturnLogId = logId;
+    const input = document.getElementById('signedReturnInput');
+    if (input) {
+        input.value = ''; // Reset
+        input.click();
+    }
+};
+
+async function handleSignedFileSelected(event) {
+    const file = event.target.files[0];
+    if (!file || !currentSignReturnLogId) return;
+
+    if (file.type !== 'application/pdf') {
+        showToast('Please select a PDF file', 'error');
+        return;
+    }
+
+    showToast('Uploading signed document...', 'success');
+
+    const formData = new FormData();
+    formData.append('signedDoc', file);
+    formData.append('staffName', staffName);
+
+    try {
+        const res = await fetch(`/api/logs/${currentSignReturnLogId}/upload-signed`, {
+            method: 'POST',
+            body: formData
+        });
+        
+        if (!res.ok) throw new Error('Upload failed');
+        
+        const data = await res.json();
+        showToast('Signed document uploaded and student notified!');
+        renderQueue(); 
+    } catch (e) {
+        console.error('Upload error:', e);
+        showToast('Failed to upload signed document', 'error');
+    } finally {
+        currentSignReturnLogId = null;
     }
 }
 
@@ -1263,7 +1491,7 @@ async function init() {
     // We bind the hub name to the local account's displayName.
     const sessionUser = await loadSessionUser();
     const role = String(sessionUser?.role || '').toLowerCase().trim();
-    const isFaculty = role === 'faculty' || !!sessionUser?.isFaculty;
+    const isFaculty = (role === 'faculty' || role === 'staff' || role === 'secretary') || !!sessionUser?.isFaculty;
     const isAdmin = (role === 'admin' || role === 'superadmin') || (!!sessionUser?.isAdmin && !isFaculty);
 
     if (isFaculty && !isAdmin) {
@@ -1371,6 +1599,9 @@ async function init() {
     // Proof upload listener
     document.getElementById('proofUploadInput')?.addEventListener('change', handleFileSelected);
 
+    // Signed return listener
+    document.getElementById('signedReturnInput')?.addEventListener('change', handleSignedFileSelected);
+
     // Header Logout button listener
     document.getElementById('logoutHeaderBtn')?.addEventListener('click', async () => {
         if (await showConfirmModal('Log Out', 'Are you sure you want to log out of the system?')) {
@@ -1381,11 +1612,80 @@ async function init() {
     // Proof modal close listeners
     const closeModal = () => {
         document.getElementById('proofViewerModal')?.classList.add('hidden');
+        const iframe = document.getElementById('proofPdfElement');
+        const img = document.getElementById('proofImageElement');
+        if (iframe) iframe.src = '';
+        if (img) img.src = '';
     };
     document.getElementById('closeProofModal')?.addEventListener('click', closeModal);
     document.getElementById('closeProofModalBtn')?.addEventListener('click', closeModal);
     document.getElementById('proofViewerModal')?.addEventListener('click', (e) => {
         if (e.target.id === 'proofViewerModal') closeModal();
+    });
+
+    // Remote sign modal listeners
+    document.getElementById('clearSignatureBtn')?.addEventListener('click', () => {
+        resizeSignatureCanvas();
+        clearSignatureCanvas();
+    });
+    document.getElementById('cancelSignBtn')?.addEventListener('click', closeSignModal);
+    document.getElementById('remoteSignModal')?.addEventListener('click', (e) => {
+        if (e.target?.id === 'remoteSignModal') closeSignModal();
+    });
+
+    document.getElementById('submitSignBtn')?.addEventListener('click', async () => {
+        if (!currentSignLogId) {
+            showToast('No transaction selected to sign.', 'error');
+            return;
+        }
+        if (!signatureHasInk) {
+            showToast('Please provide a signature first.', 'error');
+            return;
+        }
+
+        const canvas = document.getElementById('signatureCanvas');
+        if (!canvas) {
+            showToast('Signature pad not available.', 'error');
+            return;
+        }
+
+        const btn = document.getElementById('submitSignBtn');
+        const prevText = btn?.textContent;
+        if (btn) {
+            btn.disabled = true;
+            btn.textContent = 'Processing…';
+        }
+
+        try {
+            const signatureData = canvas.toDataURL('image/png');
+            const res = await fetch(`/api/logs/${currentSignLogId}/sign`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    staffName,
+                    signature: signatureData,
+                    officeId
+                })
+            });
+
+            if (res.ok) {
+                closeSignModal();
+                showToast('Approved and signed.', 'success');
+                await renderQueue();
+                await renderSummary();
+            } else {
+                const err = await res.json().catch(() => ({}));
+                showToast(err?.error || 'Failed to submit signature.', 'error');
+            }
+        } catch (e) {
+            console.error('Sign error:', e);
+            showToast('Network error while signing.', 'error');
+        } finally {
+            if (btn) {
+                btn.disabled = false;
+                btn.textContent = prevText || 'Confirm & Sign';
+            }
+        }
     });
 }
 
@@ -1659,12 +1959,13 @@ window.viewTransactionDetails = function(logId) {
             </div>
         </div>
 
-        ${log.proofImage ? `
+        ${(log.proofImage || log.softCopyPath) ? `
             <div class="pt-2 animate-in slide-in-from-bottom-4 duration-500">
                 <div class="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-slate-400 mb-4">
-                    <i data-lucide="image" class="w-3.5 h-3.5"></i>
+                    <i data-lucide="file" class="w-3.5 h-3.5"></i>
                     Attached Proof/Document
                 </div>
+                ${log.proofImage ? `
                 <div class="relative group cursor-pointer overflow-hidden rounded-[2.5rem]" onclick="window.viewProof('${log.proofImage}')">
                     <img src="${log.proofImage}" class="w-full h-52 object-cover border border-slate-200 dark:border-slate-700 shadow-xl group-hover:scale-105 transition-transform duration-700">
                     <div class="absolute inset-0 bg-slate-900/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
@@ -1673,6 +1974,18 @@ window.viewTransactionDetails = function(logId) {
                         </div>
                     </div>
                 </div>
+                ` : ''}
+                ${log.softCopyPath ? `
+                <div class="flex flex-col gap-3">
+                    <button onclick="window.viewProof('${log.softCopyPath}')" class="w-full p-6 bg-slate-50 dark:bg-slate-900/50 rounded-[2rem] border-2 border-dashed border-slate-200 dark:border-slate-700 hover:border-blue-500 transition-all group flex flex-col items-center gap-3">
+                        <div class="w-12 h-12 rounded-2xl bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 flex items-center justify-center group-hover:scale-110 transition-transform">
+                             <i data-lucide="file-text" class="w-6 h-6"></i>
+                        </div>
+                        <p class="text-xs font-black uppercase tracking-widest text-slate-500">View Soft Copy Attachment</p>
+                    </button>
+                    <a href="${log.softCopyPath}" download class="text-center text-[10px] font-black uppercase tracking-widest text-blue-500 hover:underline">Download File Directly</a>
+                </div>
+                ` : ''}
             </div>
         ` : ''}
     `;

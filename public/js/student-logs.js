@@ -112,29 +112,12 @@ const DOCUMENT_TYPES = [
         description: 'Student Request'
     },
     {
-        name: 'Document Request',
-        short: 'Request',
-        icon: 'folders',
-        color: 'indigo',
-        category: 'other',
-        description: 'Student Request'
-    },
-
-    {
         name: 'Consultation',
         short: 'Consult',
         icon: 'message-square-text',
         color: 'violet',
         category: 'other',
         description: 'Student Request'
-    },
-    {
-        name: 'Others / Custom Request',
-        short: 'Others',
-        icon: 'plus-circle',
-        color: 'slate',
-        category: 'other',
-        description: 'Specify your own need'
     }
 ];
 
@@ -319,6 +302,7 @@ class StudentKioskManager {
         this.officeId         = 'engineering-office';
         this.selectedPickupDoc = null; // for pick-up selection
         this.selectedPickupRequestId = null; // request log id being claimed
+        this.selectedSoftCopyFile = null;    // NEW: stores the File object for upload
 
         // Idle timer
         this._idleTimer    = null;
@@ -439,7 +423,7 @@ class StudentKioskManager {
     hideAllScreens() {
         const screens = [
             'scanPrompt', 'landingSelection', 'activitySelection', 'documentSelection',
-            'facultySelection', 'timeOutPrompt', 'successScreen', 'logContent'
+            'softCopyUploadSection', 'facultySelection', 'timeOutPrompt', 'successScreen', 'logContent'
         ];
         screens.forEach(id => document.getElementById(id)?.classList.add('hidden'));
     }
@@ -576,7 +560,7 @@ class StudentKioskManager {
             const val = input?.value.trim();
             if (!val) { this.showToast('Please describe your request.', 'warning'); return; }
             this.selectedDocument = { name: val, short: 'Custom', icon: 'file-question', color: 'slate', category: 'other' };
-            this.showFacultySelection();
+            this.showUploadSection();
         });
         document.getElementById('customDocInput')?.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') document.getElementById('submitCustomDocBtn')?.click();
@@ -594,10 +578,42 @@ class StudentKioskManager {
                 color: 'indigo', 
                 category: 'other' 
             };
-            this.showFacultySelection();
+            this.showUploadSection();
         });
         document.getElementById('docRequestTitleInput')?.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') document.getElementById('submitDocRequestBtn')?.click();
+        });
+
+        // ── Upload Section ──
+        document.getElementById('softCopyInput')?.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                if (file.size > 10 * 1024 * 1024) {
+                    this.showToast('File too large. Max 10MB.', 'error');
+                    e.target.value = '';
+                    return;
+                }
+                this.selectedSoftCopyFile = file;
+                const display = document.getElementById('fileNameDisplay');
+                if (display) display.textContent = `Selected: ${file.name}`;
+            }
+        });
+
+        document.getElementById('confirmUploadBtn')?.addEventListener('click', () => {
+            if (!this.selectedSoftCopyFile) {
+                this.showToast('Please select a file or click Skip.', 'warning');
+                return;
+            }
+            this.showFacultySelection();
+        });
+
+        document.getElementById('skipUploadBtn')?.addEventListener('click', () => {
+            this.selectedSoftCopyFile = null;
+            this.showFacultySelection();
+        });
+
+        document.getElementById('cancelUploadBtn')?.addEventListener('click', () => {
+            this.showDocumentSelection();
         });
 
         // ── Faculty selection ──
@@ -794,12 +810,14 @@ class StudentKioskManager {
         document.getElementById('manualEntryForm')?.classList.add('hidden');
         document.getElementById('otherDocSection')?.classList.add('hidden');
         document.getElementById('docRequestSection')?.classList.add('hidden');
+        document.getElementById('softCopyUploadSection')?.classList.add('hidden');
         
         // Hide modals
         document.getElementById('multiSessionSignOutModal')?.classList.add('hidden');
         document.getElementById('pickupConfirmationModal')?.classList.add('hidden');
         document.getElementById('pickupSelectionView')?.classList.remove('hidden');
         document.getElementById('pickupConfirmView')?.classList.add('hidden');
+        document.getElementById('signatureViewerModal')?.classList.add('hidden');
 
         const customDocInput = document.getElementById('customDocInput');
         if (customDocInput) customDocInput.value = '';
@@ -1111,7 +1129,10 @@ class StudentKioskManager {
                 const val = btn.dataset.value;
                 const activityObj = activities.find(a => a.name === val);
                 
-                if (val === 'Document Request' || val === 'Document Submission') {
+                const isDocRequest = val.toLowerCase().includes('document request') || val.toLowerCase().includes('request');
+                const isDocSubmission = val.toLowerCase().includes('document submission') || val.toLowerCase().includes('submission');
+
+                if (isDocRequest || isDocSubmission) {
                     // Go to the document sub-selection screen
                     this.selectedActivity = val;
                     this.selectedDocument = null;
@@ -1120,7 +1141,7 @@ class StudentKioskManager {
                     this.selectedDocument = DOCUMENT_TYPES.find(d => d.name === 'Document Pick-up')
                         || { name: 'Document Pick-up', short: 'Pick-up', icon: 'package-check', color: 'emerald', category: 'other' };
                     this.showPickupSelection();
-                } else if (val === 'Others / Custom Request') {
+                } else if (val === 'Others / Custom Request' || val.toLowerCase() === 'others' || val.toLowerCase() === 'other') {
                     // Show the custom input directly
                     this.selectedDocument = null;
                     this.showDocumentSelection();
@@ -1190,130 +1211,110 @@ class StudentKioskManager {
         const select = document.getElementById('documentTypeSelect');
         if (!select) return;
 
-        // Highest priority: kiosk-specific Student transaction list
+        const isSubmission = this.selectedActivity === 'Document Submission';
+        
+        // 1. Initialize with the standard curated list
+        let docs = isSubmission ? [...SUBMISSION_DOCUMENT_TYPES] : [...DOCUMENT_TYPES];
+
+        // 2. Helper to map icon/color for custom names
+        const mapCustomDoc = (name) => {
+            let icon = 'file-text';
+            let color = 'slate';
+            const lower = name.toLowerCase();
+
+            if (lower.includes('certificate') || lower.includes('cert.')) {
+                icon = 'file-badge'; color = 'blue';
+            } else if (lower.includes('transcript') || lower.includes('tor')) {
+                icon = 'scroll'; color = 'violet';
+            } else if (lower.includes('registration') || lower.includes('cor')) {
+                icon = 'file-check'; color = 'emerald';
+            } else if (lower.includes('grades') || lower.includes('gwa') || lower.includes('cog')) {
+                icon = 'award'; color = 'indigo';
+            } else if (lower.includes('clearance')) {
+                icon = 'check-square'; color = 'lime';
+            } else if (lower.includes('honorable') || lower.includes('dismissal')) {
+                icon = 'door-open'; color = 'orange';
+            } else if (lower.includes('promissory') || lower.includes('note')) {
+                icon = 'file-signature'; color = 'pink';
+            } else if (lower.includes('inquir') || lower.includes('question')) {
+                icon = 'messages-square'; color = 'cyan';
+            } else if (lower.includes('consult')) {
+                icon = 'message-square-text'; color = 'violet';
+            }
+
+            return {
+                name,
+                short: _docShortName(name),
+                icon,
+                color,
+                category: isSubmission ? 'submission' : 'custom',
+                description: 'Custom Transaction'
+            };
+        };
+
+        // 3. Merge kiosk-specific Student transaction list (Highest priority custom list)
         try {
             const studentTx = _parseStringArray(this.systemSettings.kioskStudentTransactions);
             const clean = studentTx
                 .map(x => String(x || '').trim())
                 .filter(Boolean)
-                .filter(x => x.toLowerCase() !== 'others' && x.toLowerCase() !== 'other');
+                .filter(x => x.toLowerCase() !== 'others' && x.toLowerCase() !== 'other' && x.toLowerCase() !== 'document request');
 
-            if (clean.length) {
-                let docs = clean.map(name => {
-                    let icon = 'file-text';
-                    let color = 'slate';
-                    const checkName = name.toLowerCase();
-
-                    if (checkName.includes('certificate') || checkName.includes('cert.')) {
-                        icon = 'file-badge'; color = 'blue';
-                    } else if (checkName.includes('transcript') || checkName.includes('tor')) {
-                        icon = 'scroll'; color = 'violet';
-                    } else if (checkName.includes('registration') || checkName.includes('cor')) {
-                        icon = 'file-check'; color = 'emerald';
-                    } else if (checkName.includes('grades') || checkName.includes('gwa') || checkName.includes('cog')) {
-                        icon = 'award'; color = 'indigo';
-                    } else if (checkName.includes('clearance')) {
-                        icon = 'check-square'; color = 'lime';
-                    } else if (checkName.includes('honorable') || checkName.includes('dismissal')) {
-                        icon = 'door-open'; color = 'orange';
-                    } else if (checkName.includes('promissory') || checkName.includes('note')) {
-                        icon = 'file-signature'; color = 'pink';
-                    }
-
-                    return {
-                        name,
-                        short: _docShortName(name),
-                        icon,
-                        color,
-                        category: 'custom',
-                        description: 'Student Transaction'
-                    };
-                }).filter(d => d.name !== 'Document Pick-up');
-                docs.push({
-                    name: 'Others / Custom Request',
-                    short: 'Others',
-                    icon: 'plus-circle',
-                    color: 'slate',
-                    category: 'other',
-                    description: 'Specify your own need'
-                });
-
-                select.innerHTML = [
-                    `<option value="">Select a document type…</option>`,
-                    ...docs.map(doc => `<option value="${this.escape(doc.name)}">${doc.name}</option>`)
-                ].join('');
-                return;
-            }
-        } catch {
-            // fall back below
-        }
-
-        let docs = null;
-
-        // Specialized list for Document Submission
-        if (this.selectedActivity === 'Document Submission') {
-            docs = [...SUBMISSION_DOCUMENT_TYPES];
-            docs.push({
-                name: 'Others / Custom Request',
-                short: 'Others',
-                icon: 'plus-circle',
-                color: 'slate',
-                category: 'other',
-                description: 'Specify your own need'
-            });
-            
-            select.innerHTML = [
-                `<option value="">Select a document type…</option>`,
-                ...docs.map(doc => `<option value="${this.escape(doc.name)}">${doc.name}</option>`)
-            ].join('');
-        }
-
-        // Fallback: original curated catalog, plus extra admin-added activities (legacy support)
-        if (!docs) {
-            docs = [...DOCUMENT_TYPES];
-            try {
-                if (this.systemSettings.activities) {
-                    const parsed = JSON.parse(this.systemSettings.activities);
-                    if (Array.isArray(parsed)) {
-                        parsed.forEach(a => {
-                            const name = typeof a === 'object' ? a.name : a;
-                            if (!name) return;
-                            const lower = String(name).toLowerCase();
-                            if (lower === 'others' || lower === 'other') return;
-                            if (!docs.find(d => d.name === name)) {
-                                // Smart icon & color mapping for common admin-added activities
-                                let icon = 'file-text';
-                                let color = 'slate';
-                                const checkName = lower;
-                                
-                                if (checkName.includes('enroll') || checkName.includes('admission')) {
-                                    icon = 'clipboard-list'; color = 'blue';
-                                } else if (checkName.includes('inquir') || checkName.includes('question')) {
-                                    icon = 'messages-square'; color = 'emerald';
-                                } else if (checkName.includes('consult') || checkName.includes('counsel')) {
-                                    icon = 'message-square-text'; color = 'violet';
-                                } else if (checkName.includes('document') || checkName.includes('record') || checkName.includes('grade')) {
-                                    icon = 'folders'; color = 'indigo';
-                                } else if (checkName.includes('pay') || checkName.includes('financ') || checkName.includes('fee')) {
-                                    icon = 'credit-card'; color = 'rose';
-                                } else if (checkName.includes('id ') || checkName.includes('card')) {
-                                    icon = 'badge-help'; color = 'amber';
-                                } else if (checkName.includes('clearance')) {
-                                    icon = 'check-circle'; color = 'lime';
-                                } else {
-                                    icon = 'file'; color = 'slate';
-                                }
-
-                                docs.splice(docs.length - 1, 0, { 
-                                    name, short: name, icon, color, category: 'custom', description: 'Student Request'
-                                });
-                            }
-                        });
-                    }
+            clean.forEach(name => {
+                if (!docs.find(d => d.name === name)) {
+                    docs.push(mapCustomDoc(name));
                 }
-            } catch {}
+            });
+        } catch (e) {
+            console.warn('⚠️ [renderDocumentTypes] Failed to merge kioskStudentTransactions:', e);
         }
 
+        // 4. Merge legacy activities list (Lower priority legacy support)
+        try {
+            if (this.systemSettings.activities) {
+                const parsed = JSON.parse(this.systemSettings.activities);
+                if (Array.isArray(parsed)) {
+                    parsed.forEach(a => {
+                        const name = (typeof a === 'object' ? a.name : a) || '';
+                        const lower = name.toLowerCase();
+                        if (!name || lower === 'others' || lower === 'other' || lower === 'document request' || lower === 'document pick-up') return;
+                        
+                        if (!docs.find(d => d.name === name)) {
+                            docs.push(mapCustomDoc(name));
+                        }
+                    });
+                }
+            }
+        } catch {}
+
+        // 5. Finalizing: Ensure "Document Request" and "Others" are present in the correct spots
+        
+        // Remove existing "Others" to re-add at the end
+        docs = docs.filter(d => !d.name.toLowerCase().includes('others / custom request'));
+        
+        // Add "Document Request" at the beginning for Requests only
+        if (!isSubmission && !docs.find(d => d.name === 'Document Request')) {
+            docs.unshift({
+                name: 'Document Request',
+                short: 'Request',
+                icon: 'folders',
+                color: 'indigo',
+                category: 'other',
+                description: 'Request a specific document'
+            });
+        }
+
+        // Add "Others" at the very end
+        docs.push({
+            name: 'Others / Custom Request',
+            short: 'Others',
+            icon: 'plus-circle',
+            color: 'slate',
+            category: 'other',
+            description: 'Specify your own need'
+        });
+
+        // 6. Populate the dropdown
         select.innerHTML = [
             `<option value="">Select a document type…</option>`,
             ...docs.map(doc => `<option value="${this.escape(doc.name)}">${doc.name}</option>`)
@@ -1395,11 +1396,30 @@ class StudentKioskManager {
         document.getElementById('docRequestSection')?.classList.add('hidden');
 
         if (this.selectedActivity === 'Document Submission') {
-            this.logVisit('Superadmin');
+            // For submissions, we definitely want to show the upload section
+            this.showUploadSection();
             return;
         }
 
-        this.showFacultySelection();
+        // For requests, also show upload section
+        this.showUploadSection();
+    }
+
+    // ── Show: Upload Section ──
+    showUploadSection() {
+        this.hideAllScreens();
+        // Clear previous file if any (or keep it if they just hit back?)
+        // Let's clear it to avoid confusion if they change document type
+        this.selectedSoftCopyFile = null;
+        const input = document.getElementById('softCopyInput');
+        if (input) input.value = '';
+        const display = document.getElementById('fileNameDisplay');
+        if (display) display.textContent = 'Tap to Select File';
+
+        const screen = document.getElementById('softCopyUploadSection');
+        if (screen) screen.classList.remove('hidden');
+        this.resetIdleTimer();
+        this.setupLucide();
     }
 
     // ── Show: Faculty / staff selection ───────────────────────
@@ -1473,7 +1493,7 @@ class StudentKioskManager {
         this.setupLucide();
     }
 
-    // ── Log the visit (final step) ─────────────────────────────
+    // ── Log the visit (final step) ──
     async logVisit(facultyName) {
         this.selectedFaculty = facultyName;
 
@@ -1482,6 +1502,9 @@ class StudentKioskManager {
             return;
         }
 
+        // Use FormData for file upload
+        const formData = new FormData();
+        
         const logData = {
             studentNumber: this.currentStudent.id,
             studentName:   this.currentStudent.name,
@@ -1492,17 +1515,26 @@ class StudentKioskManager {
             yearLevel:     this.currentStudent['Year Level'] || this.currentStudent.yearLevel || 'N/A',
             course:        this.currentStudent.Course || this.currentStudent.course || 'N/A',
             date:          new Date().toISOString().split('T')[0],
-            // Status tracking
-            docStatus:     this.selectedActivity === 'Document Submission' ? 'In' : 'In',
+            docStatus:     'In',
             status:        this.selectedActivity === 'Document Submission' ? 'completed' : 'pending',
             timeOut:       this.selectedActivity === 'Document Submission' ? new Date().toISOString() : null
         };
+
+        // Append logData as a JSON string or individual fields
+        // Backend handles both, but let's send it as a JSON string to keep it clean
+        formData.append('studentData', JSON.stringify(this.currentStudent));
+        formData.append('logData', JSON.stringify(logData));
+        formData.append('officeId', this.officeId);
+        
+        if (this.selectedSoftCopyFile) {
+            formData.append('softCopy', this.selectedSoftCopyFile);
+        }
 
         try {
             // If this is a Document Pick-up, mark the selected completed request as released.
             const isPickup = String(this.selectedDocument?.name || '').toLowerCase().startsWith('document pick-up');
             if (isPickup && this.selectedPickupRequestId) {
-                const claimRes = await fetch(`/api/logs/${this.selectedPickupRequestId}/claim`, {
+                await fetch(`/api/logs/${this.selectedPickupRequestId}/claim`, {
                     method: 'PATCH',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -1510,17 +1542,12 @@ class StudentKioskManager {
                         officeId: this.officeId
                     })
                 });
-
-                if (!claimRes.ok) {
-                    const data = await claimRes.json().catch(() => ({}));
-                    this.showToast(data?.error || 'Unable to claim that document. Please see staff.', 'error');
-                    return;
-                }
             }
-            const response = await fetch('/api/logs', {
+
+            const response = await fetch('/api/register-log', {
                 method:  'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body:    JSON.stringify({ logData, officeId: this.officeId })
+                // Note: Don't set Content-Type header when using FormData, browser does it automatically
+                body:    formData
             });
 
             if (response.ok) {
@@ -1699,7 +1726,21 @@ class StudentKioskManager {
 
                     let proofBtn = '';
                     if (log.proofImage) {
-                        proofBtn = `<button onclick="window.kioskManager.viewProof('${log.proofImage}')" class="mt-2 inline-flex items-center gap-1.5 text-[9px] font-bold text-violet-600 dark:text-violet-400 hover:bg-violet-50 dark:hover:bg-violet-900/30 px-3 py-1.5 rounded-full transition-all border border-violet-100 dark:border-violet-900/50"><i data-lucide="file-check" class="w-3 h-3"></i> View Proof</button>`;
+                        proofBtn = `
+                            <div class="flex gap-2">
+                                <button onclick="window.kioskManager.viewProof('${log.proofImage}')" class="mt-2 inline-flex items-center gap-1.5 text-[9px] font-bold text-violet-600 dark:text-violet-400 hover:bg-violet-50 dark:hover:bg-violet-900/30 px-3 py-1.5 rounded-full transition-all border border-violet-100 dark:border-violet-900/50">
+                                    <i data-lucide="file-check" class="w-3 h-3"></i> View Proof
+                                </button>
+                                <a href="${log.proofImage}" download class="mt-2 inline-flex items-center gap-1.5 text-[9px] font-bold text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 px-3 py-1.5 rounded-full transition-all border border-blue-100 dark:border-blue-900/50">
+                                    <i data-lucide="download" class="w-3 h-3"></i> Download
+                                </a>
+                            </div>
+                        `;
+                    }
+
+                    let signBtn = '';
+                    if (log.signature) {
+                        signBtn = `<button onclick="window.kioskManager.viewSignature('${log.id}', '${log.signature.replace(/'/g, "\\'")}')" class="mt-2 inline-flex items-center gap-1.5 text-[9px] font-bold text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 px-3 py-1.5 rounded-full transition-all border border-emerald-100 dark:border-emerald-900/50"><i data-lucide="signature" class="w-3 h-3"></i> View Signature</button>`;
                     }
 
                     return `
@@ -1707,7 +1748,10 @@ class StudentKioskManager {
                             <td class="px-8 py-5 font-bold text-slate-500 dark:text-slate-400 text-xs">${date}</td>
                             <td class="px-6 py-5">
                                 <span class="block font-black text-slate-800 dark:text-white text-sm">${log.activity || '—'}</span>
-                                ${proofBtn}
+                                <div class="flex gap-2 flex-wrap">
+                                    ${proofBtn}
+                                    ${signBtn}
+                                </div>
                             </td>
                             <td class="px-6 py-5 text-center">${statusBadge}</td>
                             <td class="px-8 py-5 text-right font-bold text-slate-500 dark:text-slate-300 text-xs">${log.staff || '---'}</td>
@@ -1729,6 +1773,11 @@ class StudentKioskManager {
         const iframe = document.getElementById('proofPdfElement');
         if (!modal) return;
 
+        const downloadBtn = document.getElementById('downloadProofBtn');
+        if (downloadBtn) {
+            downloadBtn.href = url;
+        }
+
         if (url.toLowerCase().endsWith('.pdf')) {
             img?.classList.add('hidden');
             if (iframe) { iframe.src = url; iframe.classList.remove('hidden'); }
@@ -1736,6 +1785,17 @@ class StudentKioskManager {
             iframe?.classList.add('hidden');
             if (img) { img.src = url; img.classList.remove('hidden'); }
         }
+        modal.classList.remove('hidden');
+        this.setupLucide();
+    }
+
+    // ── Signature viewer ─────────────────────────────────────────
+    viewSignature(logId, signatureBase64) {
+        const modal = document.getElementById('signatureViewerModal');
+        const img   = document.getElementById('signatureImageElement');
+        if (!modal || !img) return;
+
+        img.src = signatureBase64;
         modal.classList.remove('hidden');
         this.setupLucide();
     }

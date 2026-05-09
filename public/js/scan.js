@@ -365,6 +365,30 @@ class ScannerManager {
                 this.logTimeOut();
             });
         }
+
+        // PDF Upload Listeners (New)
+        const pdfInput = document.getElementById('studentPdfUpload');
+        const pdfFileNameDisplay = document.getElementById('pdfFileName');
+        if (pdfInput && pdfFileNameDisplay) {
+            pdfInput.addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                if (file) {
+                    if (file.type !== 'application/pdf') {
+                        this.showToast('Please select a PDF file', 'error');
+                        pdfInput.value = '';
+                        pdfFileNameDisplay.textContent = 'No file selected...';
+                        return;
+                    }
+                    pdfFileNameDisplay.textContent = file.name;
+                    pdfFileNameDisplay.classList.remove('text-slate-400');
+                    pdfFileNameDisplay.classList.add('text-blue-600', 'font-black');
+                } else {
+                    pdfFileNameDisplay.textContent = 'No file selected...';
+                    pdfFileNameDisplay.classList.add('text-slate-400');
+                    pdfFileNameDisplay.classList.remove('text-blue-600', 'font-black');
+                }
+            });
+        }
     }
 
 
@@ -965,25 +989,32 @@ class ScannerManager {
         }
 
         try {
+            const formData = new FormData();
+            const pdfFile = document.getElementById('studentPdfUpload')?.files[0];
+            
+            const logData = {
+                studentNumber: this.currentStudent.id,
+                studentName: this.currentStudent.name,
+                studentId: this.currentStudent.studentId || 'N/A',
+                activity: activity,
+                staff: staff,
+                yearLevel: this.currentStudent['Year Level'] || this.currentStudent.yearLevel || 'N/A',
+                course: this.currentStudent.Course || this.currentStudent.course || 'N/A',
+                email: this.currentStudent.email || '',
+                date: new Date().toISOString().split('T')[0],
+                staffEmail: window.authManager?.getCurrentUser?.()?.email || ''
+            };
+
+            formData.append('logData', JSON.stringify(logData));
+            formData.append('officeId', this.officeId);
+            if (pdfFile) {
+                formData.append('softCopy', pdfFile);
+            }
+
             // Log visit via backend API
             const response = await fetch('/api/logs', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    logData: {
-                        studentNumber: this.currentStudent.id,
-                        studentName: this.currentStudent.name,
-                        studentId: this.currentStudent.studentId || 'N/A',
-                        activity: activity,
-                        staff: staff,
-                        yearLevel: this.currentStudent['Year Level'] || this.currentStudent.yearLevel || 'N/A',
-                        course: this.currentStudent.Course || this.currentStudent.course || 'N/A',
-                        email: this.currentStudent.email || '',
-                        date: new Date().toISOString().split('T')[0],
-                        staffEmail: window.authManager?.getCurrentUser?.()?.email || ''
-                    },
-                    officeId: this.officeId
-                })
+                body: formData
             });
 
             const result = await response.json();
