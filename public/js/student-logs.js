@@ -181,18 +181,18 @@ const SUBMISSION_DOCUMENT_TYPES = [
 ];
 
 const COLOR_MAP = {
-    blue:   { bg: 'bg-blue-50 dark:bg-blue-900/20',   text: 'text-blue-600 dark:text-blue-400',   hover: 'hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20',   badge: 'bg-blue-600' },
-    indigo: { bg: 'bg-indigo-50 dark:bg-indigo-900/20', text: 'text-indigo-600 dark:text-indigo-400', hover: 'hover:border-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/20', badge: 'bg-indigo-600' },
-    violet: { bg: 'bg-violet-50 dark:bg-violet-900/20', text: 'text-violet-600 dark:text-violet-400', hover: 'hover:border-violet-400 hover:bg-violet-50 dark:hover:bg-violet-900/20', badge: 'bg-violet-600' },
-    emerald:{ bg: 'bg-emerald-50 dark:bg-emerald-900/20', text: 'text-emerald-600 dark:text-emerald-400', hover: 'hover:border-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/20', badge: 'bg-emerald-600' },
-    amber:  { bg: 'bg-amber-50 dark:bg-amber-900/20',  text: 'text-amber-600 dark:text-amber-400',  hover: 'hover:border-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20',  badge: 'bg-amber-600' },
-    rose:   { bg: 'bg-rose-50 dark:bg-rose-900/20',    text: 'text-rose-600 dark:text-rose-400',    hover: 'hover:border-rose-400 hover:bg-rose-50 dark:hover:bg-rose-900/20',    badge: 'bg-rose-600' },
-    orange: { bg: 'bg-orange-50 dark:bg-orange-900/20', text: 'text-orange-600 dark:text-orange-400', hover: 'hover:border-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900/20', badge: 'bg-orange-600' },
-    cyan:   { bg: 'bg-cyan-50 dark:bg-cyan-900/20',    text: 'text-cyan-600 dark:text-cyan-400',    hover: 'hover:border-cyan-400 hover:bg-cyan-50 dark:hover:bg-cyan-900/20',    badge: 'bg-cyan-600' },
-    teal:   { bg: 'bg-teal-50 dark:bg-teal-900/20',    text: 'text-teal-600 dark:text-teal-400',    hover: 'hover:border-teal-400 hover:bg-teal-50 dark:hover:bg-teal-900/20',    badge: 'bg-teal-600' },
-    pink:   { bg: 'bg-pink-50 dark:bg-pink-900/20',    text: 'text-pink-600 dark:text-pink-400',    hover: 'hover:border-pink-400 hover:bg-pink-50 dark:hover:bg-pink-900/20',    badge: 'bg-pink-600' },
-    lime:   { bg: 'bg-lime-50 dark:bg-lime-900/20',    text: 'text-lime-600 dark:text-lime-400',    hover: 'hover:border-lime-400 hover:bg-lime-50 dark:hover:bg-lime-900/20',    badge: 'bg-lime-600' },
-    slate:  { bg: 'bg-slate-100 dark:bg-slate-700',    text: 'text-slate-600 dark:text-slate-300',  hover: 'hover:border-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700',  badge: 'bg-slate-600' }
+    blue:   { bg: 'bg-blue-50 dark:bg-blue-900/20',   text: 'text-blue-600 dark:text-blue-400',   badge: 'bg-blue-600' },
+    indigo: { bg: 'bg-indigo-50 dark:bg-indigo-900/20', text: 'text-indigo-600 dark:text-indigo-400', badge: 'bg-indigo-600' },
+    violet: { bg: 'bg-violet-50 dark:bg-violet-900/20', text: 'text-violet-600 dark:text-violet-400', badge: 'bg-violet-600' },
+    emerald:{ bg: 'bg-emerald-50 dark:bg-emerald-900/20', text: 'text-emerald-600 dark:text-emerald-400', badge: 'bg-emerald-600' },
+    amber:  { bg: 'bg-amber-50 dark:bg-amber-900/20',  text: 'text-amber-600 dark:text-amber-400',  badge: 'bg-amber-600' },
+    rose:   { bg: 'bg-rose-50 dark:bg-rose-900/20',    text: 'text-rose-600 dark:text-rose-400',    badge: 'bg-rose-600' },
+    orange: { bg: 'bg-orange-50 dark:bg-orange-900/20', text: 'text-orange-600 dark:text-orange-400', badge: 'bg-orange-600' },
+    cyan:   { bg: 'bg-cyan-50 dark:bg-cyan-900/20',    text: 'text-cyan-600 dark:text-cyan-400',    badge: 'bg-cyan-600' },
+    teal:   { bg: 'bg-teal-50 dark:bg-teal-900/20',    text: 'text-teal-600 dark:text-teal-400',    badge: 'bg-teal-600' },
+    pink:   { bg: 'bg-pink-50 dark:bg-pink-900/20',    text: 'text-pink-600 dark:text-pink-400',    badge: 'bg-pink-600' },
+    lime:   { bg: 'bg-lime-50 dark:bg-lime-900/20',    text: 'text-lime-600 dark:text-lime-400',    badge: 'bg-lime-600' },
+    slate:  { bg: 'bg-slate-50 dark:bg-slate-700/30',  text: 'text-slate-600 dark:text-slate-300',  badge: 'bg-slate-600' }
 };
 
 function _normalizeActivities(raw) {
@@ -600,24 +600,87 @@ class StudentKioskManager {
         });
 
         document.getElementById('confirmUploadBtn')?.addEventListener('click', () => {
+            const descArea = document.getElementById('unifiedDescriptionArea');
+            if (descArea && !descArea.classList.contains('hidden')) {
+                const input = document.getElementById('unifiedDescriptionInput');
+                const val = input?.value.trim();
+                if (!val) {
+                    this.showToast('Please describe your document or purpose.', 'warning');
+                    input?.focus();
+                    return;
+                }
+                if (this.selectedDocument) {
+                    this.selectedDocument.name = val;
+                    this.selectedDocument.short = 'Custom';
+                }
+            }
+
             if (!this.selectedSoftCopyFile) {
-                this.showToast('Please select a file or click Skip.', 'warning');
+                this.showToast('Please select a file first or click skip.', 'warning');
                 return;
             }
             this.showFacultySelection();
         });
 
         document.getElementById('skipUploadBtn')?.addEventListener('click', () => {
+            const descArea = document.getElementById('unifiedDescriptionArea');
+            if (descArea && !descArea.classList.contains('hidden')) {
+                const input = document.getElementById('unifiedDescriptionInput');
+                const val = input?.value.trim();
+                if (!val) {
+                    this.showToast('Please describe your document or purpose.', 'warning');
+                    input?.focus();
+                    return;
+                }
+                if (this.selectedDocument) {
+                    this.selectedDocument.name = val;
+                    this.selectedDocument.short = 'Custom';
+                }
+            }
+
             this.selectedSoftCopyFile = null;
             this.showFacultySelection();
         });
 
+        document.getElementById('cancelDocBtn')?.addEventListener('click', () => this.showActivitySelection());
+
         document.getElementById('cancelUploadBtn')?.addEventListener('click', () => {
-            this.showDocumentSelection();
+            if (this.selectedActivity === 'Document Request' || this.selectedActivity === 'Document Submission' || this.selectedActivity === 'Others / Custom Request') {
+                this.showDocumentSelection();
+            } else {
+                this.showActivitySelection();
+            }
         });
 
         // ── Faculty selection ──
-        document.getElementById('backToDocBtn')?.addEventListener('click', () => this.showDocumentSelection());
+        document.getElementById('backToDocBtn')?.addEventListener('click', () => this.showUploadSection());
+
+        // ── Custom Activity (Others) ──
+        document.getElementById('submitCustomActivityBtn')?.addEventListener('click', () => {
+            const input = document.getElementById('customActivityInput');
+            const val = input?.value.trim();
+            if (!val) { this.showToast('Please describe your purpose.', 'warning'); return; }
+            
+            this.selectedActivity = 'Others';
+            this.selectedDocument = { 
+                name: val, 
+                short: 'Custom', 
+                icon: 'file-question', 
+                color: 'slate', 
+                category: 'other' 
+            };
+            this.showUploadSection();
+        });
+
+        document.getElementById('customActivityInput')?.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') document.getElementById('submitCustomActivityBtn')?.click();
+        });
+
+        document.getElementById('backToActivityGridBtn')?.addEventListener('click', () => {
+            document.getElementById('customActivitySection')?.classList.add('hidden');
+            document.getElementById('activityCardGrid')?.classList.remove('hidden');
+            document.getElementById('cancelActivityBtn')?.classList.remove('hidden');
+        });
 
         // ── Time-out prompt ──
         document.getElementById('confirmTimeOutBtn')?.addEventListener('click', () => {
@@ -1079,10 +1142,19 @@ class StudentKioskManager {
     showActivitySelection() {
         this.hideAllScreens();
         this.updateStepIndicator(2);
+        this.selectedActivity = null;
+        this.selectedDocument = null;
 
         const screen = document.getElementById('activitySelection');
         if (!screen) return;
         screen.classList.remove('hidden');
+
+        // Reset custom activity view
+        document.getElementById('activityCardGrid')?.classList.remove('hidden');
+        document.getElementById('customActivitySection')?.classList.add('hidden');
+        document.getElementById('cancelActivityBtn')?.classList.remove('hidden');
+        const customInput = document.getElementById('customActivityInput');
+        if (customInput) customInput.value = '';
 
         const nameEl = document.getElementById('actStudentName');
         if (nameEl) nameEl.textContent = this.currentStudent?.name?.split(' ')[0] || 'Student';
@@ -1114,12 +1186,17 @@ class StudentKioskManager {
         grid.innerHTML = activities.map(act => {
             const colors = COLOR_MAP[act.color] || COLOR_MAP['slate'];
             return `
-                <button type="button" class="activity-card kiosk-btn relative bg-white dark:bg-slate-800 rounded-[2.5rem] border-2 border-slate-100 dark:border-slate-700 p-8 flex flex-col items-center justify-center text-center transition-all duration-300 hover:shadow-2xl hover:shadow-slate-200/50 dark:hover:shadow-none hover:-translate-y-2 hover:border-slate-300 dark:hover:border-slate-500 group active:scale-95 w-full" data-value="${this.escape(act.name)}">
-                    <div class="w-20 h-20 rounded-[1.8rem] ${colors.bg} ${colors.text} flex items-center justify-center mb-5 transition-transform duration-500 group-hover:scale-110 group-hover:-rotate-3 shadow-sm border border-white/50 dark:border-white/5">
-                        <i data-lucide="${act.icon}" class="w-10 h-10 transition-all group-hover:drop-shadow-md"></i>
+                <button type="button" class="activity-card kiosk-btn relative bg-white dark:bg-slate-800 rounded-[3rem] border-2 border-slate-50 dark:border-slate-700 p-10 flex flex-col items-center justify-center text-center transition-all duration-500 hover:shadow-[0_32px_64px_-12px_rgba(0,0,0,0.1)] dark:hover:shadow-none hover:-translate-y-2 hover:border-blue-400 dark:hover:border-blue-500 group active:scale-95 w-full" data-value="${this.escape(act.name)}">
+                    
+                    <div class="w-24 h-24 rounded-[2rem] ${colors.bg} ${colors.text} flex items-center justify-center mb-6 transition-transform duration-700 group-hover:scale-110 group-hover:-rotate-6 shadow-inner border border-white/50 dark:border-white/5">
+                        <i data-lucide="${act.icon}" class="w-12 h-12 transition-all group-hover:drop-shadow-md"></i>
                     </div>
-                    <h3 class="font-black text-slate-800 dark:text-white text-xl leading-tight mb-2 tracking-tight">${act.short}</h3>
-                    <p class="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.15em] leading-snug">${act.description}</p>
+                    
+                    <h3 class="font-black text-slate-900 dark:text-white text-2xl leading-tight mb-2 tracking-tighter">${act.short}</h3>
+                    <p class="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] leading-snug">${act.description}</p>
+                    
+                    <!-- Subtle indicator -->
+                    <div class="absolute top-6 right-6 w-2 h-2 rounded-full bg-slate-100 dark:bg-slate-700 group-hover:bg-blue-500 transition-colors"></div>
                 </button>
             `;
         }).join('');
@@ -1129,8 +1206,8 @@ class StudentKioskManager {
                 const val = btn.dataset.value;
                 const activityObj = activities.find(a => a.name === val);
                 
-                const isDocRequest = val.toLowerCase().includes('document request') || val.toLowerCase().includes('request');
-                const isDocSubmission = val.toLowerCase().includes('document submission') || val.toLowerCase().includes('submission');
+                const isDocRequest = val === 'Document Request' || (val.toLowerCase().includes('document request') && !val.toLowerCase().includes('others'));
+                const isDocSubmission = val === 'Document Submission' || val.toLowerCase().includes('document submission');
 
                 if (isDocRequest || isDocSubmission) {
                     // Go to the document sub-selection screen
@@ -1142,17 +1219,17 @@ class StudentKioskManager {
                         || { name: 'Document Pick-up', short: 'Pick-up', icon: 'package-check', color: 'emerald', category: 'other' };
                     this.showPickupSelection();
                 } else if (val === 'Others / Custom Request' || val.toLowerCase() === 'others' || val.toLowerCase() === 'other') {
-                    // Show the custom input directly
-                    this.selectedDocument = null;
-                    this.showDocumentSelection();
-                    // Trigger the "Others" path
-                    setTimeout(() => {
-                        document.getElementById('documentGrid')?.classList.add('hidden');
-                        document.getElementById('otherDocSection')?.classList.remove('hidden');
-                        document.getElementById('customDocInput')?.focus();
-                    }, 50);
+                    // Show the custom input directly on this screen
+                    document.getElementById('activityCardGrid')?.classList.add('hidden');
+                    document.getElementById('cancelActivityBtn')?.classList.add('hidden');
+                    const section = document.getElementById('customActivitySection');
+                    if (section) {
+                        section.classList.remove('hidden');
+                        document.getElementById('customActivityInput')?.focus();
+                    }
                 } else {
-                    // Non-document activities go straight to staff
+                    // Non-document activities go to attach soft copy section before staff selection
+                    this.selectedActivity = val;
                     this.selectedDocument = { 
                         name: val, 
                         short: activityObj?.short || val, 
@@ -1160,7 +1237,7 @@ class StudentKioskManager {
                         color: activityObj?.color || 'slate', 
                         category: 'activity' 
                     };
-                    this.showFacultySelection();
+                    this.showUploadSection();
                 }
             });
         });
@@ -1326,14 +1403,17 @@ class StudentKioskManager {
             grid.innerHTML = docs.map(doc => {
                 const colors = COLOR_MAP[doc.color] || COLOR_MAP['slate'];
                 return `
-                    <button type="button" class="doc-card kiosk-btn relative bg-white dark:bg-slate-800 rounded-[2.5rem] border-2 border-slate-100 dark:border-slate-700 p-8 flex flex-col items-center justify-center text-center transition-all duration-300 hover:shadow-2xl hover:shadow-slate-200/50 dark:hover:shadow-none hover:-translate-y-2 hover:border-slate-300 dark:hover:border-slate-500 group active:scale-95 w-full" data-value="${this.escape(doc.name)}">
+                    <button type="button" class="doc-card kiosk-btn relative bg-white dark:bg-slate-800 rounded-[3rem] border-2 border-slate-50 dark:border-slate-700 p-10 flex flex-col items-center justify-center text-center transition-all duration-500 hover:shadow-[0_32px_64px_-12px_rgba(0,0,0,0.1)] dark:hover:shadow-none hover:-translate-y-2 hover:border-blue-400 dark:hover:border-blue-500 group active:scale-95 w-full" data-value="${this.escape(doc.name)}">
                         
-                        <div class="w-20 h-20 rounded-[1.8rem] ${colors.bg} ${colors.text} flex items-center justify-center mb-5 transition-transform duration-500 group-hover:scale-110 group-hover:-rotate-3 shadow-sm border border-white/50 dark:border-white/5">
-                            <i data-lucide="${doc.icon}" class="w-10 h-10 transition-all group-hover:drop-shadow-md"></i>
+                        <div class="w-24 h-24 rounded-[2rem] ${colors.bg} ${colors.text} flex items-center justify-center mb-6 transition-transform duration-700 group-hover:scale-110 group-hover:rotate-6 shadow-inner border border-white/50 dark:border-white/5">
+                            <i data-lucide="${doc.icon}" class="w-12 h-12 transition-all group-hover:drop-shadow-md"></i>
                         </div>
                         
-                        <h3 class="font-black text-slate-800 dark:text-white text-xl leading-tight mb-2 tracking-tight">${doc.short}</h3>
-                        <p class="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.15em] leading-snug">${doc.description}</p>
+                        <h3 class="font-black text-slate-900 dark:text-white text-2xl leading-tight mb-2 tracking-tighter">${doc.short}</h3>
+                        <p class="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] leading-snug">${doc.description}</p>
+
+                        <!-- Subtle indicator -->
+                        <div class="absolute top-6 right-6 w-2 h-2 rounded-full bg-slate-100 dark:bg-slate-700 group-hover:bg-blue-500 transition-colors"></div>
                     </button>
                 `;
             }).join('');
@@ -1358,25 +1438,9 @@ class StudentKioskManager {
 
     // ── Select a document type ─────────────────────────────────
     selectDocument(docName) {
-        if (docName === 'Others / Custom Request') {
-            document.getElementById('documentGrid')?.classList.add('hidden');
-            const otherSection = document.getElementById('otherDocSection');
-            if (otherSection) {
-                otherSection.classList.remove('hidden');
-                otherSection.scrollIntoView({ behavior: 'smooth' });
-                document.getElementById('customDocInput')?.focus();
-            }
-            return;
-        }
-
-        if (docName === 'Document Request') {
-            document.getElementById('documentGrid')?.classList.add('hidden');
-            const section = document.getElementById('docRequestSection');
-            if (section) {
-                section.classList.remove('hidden');
-                section.scrollIntoView({ behavior: 'smooth' });
-                document.getElementById('docRequestTitleInput')?.focus();
-            }
+        if (docName === 'Others / Custom Request' || docName === 'Document Request') {
+            this.selectedDocument = { name: docName, short: 'Custom', icon: 'file', color: 'slate', category: 'custom' };
+            this.showUploadSection();
             return;
         }
 
@@ -1408,16 +1472,45 @@ class StudentKioskManager {
     // ── Show: Upload Section ──
     showUploadSection() {
         this.hideAllScreens();
-        // Clear previous file if any (or keep it if they just hit back?)
-        // Let's clear it to avoid confusion if they change document type
+        
+        const screen = document.getElementById('softCopyUploadSection');
+        if (!screen) return;
+        screen.classList.remove('hidden');
+
+        // Reset file state
         this.selectedSoftCopyFile = null;
         const input = document.getElementById('softCopyInput');
         if (input) input.value = '';
         const display = document.getElementById('fileNameDisplay');
         if (display) display.textContent = 'Tap to Select File';
 
-        const screen = document.getElementById('softCopyUploadSection');
-        if (screen) screen.classList.remove('hidden');
+        // Unified Description Logic
+        const descArea = document.getElementById('unifiedDescriptionArea');
+        const descInput = document.getElementById('unifiedDescriptionInput');
+        if (descInput) descInput.value = '';
+
+        const docName = this.selectedDocument?.name || 'transaction';
+        const isCustom = docName.toLowerCase().includes('others') || docName.toLowerCase().includes('document request');
+
+        if (isCustom) {
+            descArea?.classList.remove('hidden');
+            setTimeout(() => descInput?.focus(), 100);
+        } else {
+            descArea?.classList.add('hidden');
+        }
+
+        const title = document.getElementById('uploadSectionTitle');
+        const desc = document.getElementById('uploadSectionDesc');
+
+        if (title) title.textContent = isCustom ? 'Describe & Attach' : 'Attach Soft Copy';
+        if (desc) {
+            if (isCustom) {
+                desc.innerHTML = `Please describe what you need and attach a soft copy if you have one.`;
+            } else {
+                desc.innerHTML = `Would you like to attach a digital copy (PDF/Image) for your <span class="font-black text-blue-500">${docName}</span>?`;
+            }
+        }
+
         this.resetIdleTimer();
         this.setupLucide();
     }
@@ -1455,33 +1548,40 @@ class StudentKioskManager {
 
             let html = '';
             if (!faculties || faculties.length === 0) {
-                // Keep html with Secretary only
+                // Keep html empty or with Secretary only if needed
             } else {
                 html += faculties.map(f => `
-                    <button onclick="window.kioskManager.logVisit('${this.escape(f.name)}')"
-                        class="doc-card kiosk-btn relative bg-white dark:bg-slate-800 rounded-[2.5rem] border-2 border-slate-100 dark:border-slate-700 p-8 flex flex-col items-center justify-center text-center transition-all duration-300 hover:shadow-2xl hover:shadow-slate-200/50 dark:hover:shadow-none hover:-translate-y-2 hover:border-emerald-300 dark:hover:border-emerald-500 group active:scale-95 w-full">
-                        <div class="w-20 h-20 rounded-[1.8rem] bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 flex items-center justify-center mb-5 transition-transform duration-500 group-hover:scale-110 group-hover:-rotate-3 shadow-sm border border-white/50 dark:border-white/5 overflow-hidden">
+                    <div onclick="window.kioskManager.logVisit('${this.escape(f.name)}')"
+                        class="doc-card kiosk-btn relative bg-white dark:bg-slate-800 rounded-[2.5rem] border-2 border-slate-50 dark:border-slate-700 p-10 flex flex-col items-center justify-center text-center transition-all duration-500 hover:shadow-[0_32px_64px_-12px_rgba(0,0,0,0.1)] dark:hover:shadow-none hover:-translate-y-2 hover:border-blue-400 dark:hover:border-blue-500 group active:scale-95 cursor-pointer">
+                        
+                        <div class="w-24 h-24 rounded-[2rem] bg-blue-50 dark:bg-blue-900/20 text-blue-600 flex items-center justify-center mb-6 transition-transform duration-700 group-hover:scale-110 group-hover:rotate-3 shadow-inner border border-blue-100 dark:border-blue-800/30 overflow-hidden relative">
                             ${f.photoURL
                                 ? `<img src="${f.photoURL}" class="w-full h-full object-cover">`
                                 : `<div class="w-full h-full flex items-center justify-center font-black text-3xl">${(f.name || 'S').charAt(0).toUpperCase()}</div>`
                             }
                         </div>
-                        <h3 class="font-black text-slate-800 dark:text-white text-lg leading-tight mb-2 tracking-tight truncate w-full px-2">${f.name}</h3>
-                        <p class="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.15em] leading-snug">${f.position || 'Staff'}</p>
-                    </button>
+
+                        <div class="space-y-1">
+                            <h4 class="text-xl font-black text-slate-900 dark:text-white tracking-tight">${f.name}</h4>
+                            <p class="text-[10px] font-black text-blue-500 uppercase tracking-[0.2em] opacity-0 group-hover:opacity-100 transition-opacity">Select Staff</p>
+                        </div>
+
+                        <!-- Subtle accent -->
+                        <div class="absolute top-4 right-4 w-2 h-2 rounded-full bg-blue-500/20 group-hover:bg-blue-500 transition-colors"></div>
+                    </div>
                 `).join('');
             }
 
             // Skip / General Staff option
             html += `
-                <button onclick="window.kioskManager.logVisit('General Staff')"
-                    class="doc-card kiosk-btn relative bg-slate-50 dark:bg-slate-800/60 rounded-[2.5rem] border-2 border-dashed border-slate-200 dark:border-slate-600 p-8 flex flex-col items-center justify-center text-center transition-all duration-300 hover:shadow-xl hover:-translate-y-2 hover:border-slate-400 dark:hover:border-slate-500 group active:scale-95 w-full">
-                    <div class="w-20 h-20 rounded-[1.8rem] bg-slate-200 dark:bg-slate-700 text-slate-500 dark:text-slate-400 flex items-center justify-center mb-5 transition-transform duration-500 group-hover:scale-110 group-hover:rotate-3 shadow-sm border border-white/50 dark:border-white/5">
-                        <i data-lucide="users" class="w-10 h-10 transition-all group-hover:drop-shadow-md"></i>
+                <div onclick="window.kioskManager.logVisit('General Staff')"
+                    class="doc-card kiosk-btn relative bg-slate-50 dark:bg-slate-800/60 rounded-[2.5rem] border-2 border-dashed border-slate-200 dark:border-slate-600 p-10 flex flex-col items-center justify-center text-center transition-all duration-500 hover:shadow-xl hover:-translate-y-2 hover:border-slate-400 dark:hover:border-slate-500 group active:scale-95 cursor-pointer">
+                    <div class="w-24 h-24 rounded-[2rem] bg-slate-200 dark:bg-slate-700 text-slate-500 dark:text-slate-400 flex items-center justify-center mb-6 transition-transform duration-500 group-hover:scale-110 group-hover:rotate-3 shadow-sm border border-white/50 dark:border-white/5">
+                        <i data-lucide="users" class="w-12 h-12 transition-all group-hover:drop-shadow-md"></i>
                     </div>
-                    <h3 class="font-black text-slate-600 dark:text-slate-300 text-lg leading-tight mb-2 tracking-tight">Skip Selection</h3>
-                    <p class="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.15em] leading-snug">General Staff</p>
-                </button>
+                    <h3 class="font-black text-slate-600 dark:text-slate-300 text-xl leading-tight mb-2 tracking-tight">Skip Selection</h3>
+                    <p class="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.15em] leading-snug">General Office Staff</p>
+                </div>
             `;
 
             grid.innerHTML = html;
@@ -1589,13 +1689,13 @@ class StudentKioskManager {
 
         if (isSubmission) {
             if (heading)  heading.textContent  = 'Document Received!';
-            if (subtitle) subtitle.innerHTML   = 'Your <span class="text-emerald-600 font-black">' + logData.activity + '</span> has been submitted to the office. You\'re all set!';
+            if (subtitle) subtitle.innerHTML   = 'Your <span class="text-blue-600 font-black">' + logData.activity + '</span> has been submitted to the office. You\'re all set!';
         } else if (isPickup) {
             if (heading)  heading.textContent  = 'Pick-up Confirmed!';
-            if (subtitle) subtitle.innerHTML   = 'You have successfully claimed your <span class="text-emerald-600 font-black">' + logData.activity.replace('Document Pick-up: ', '') + '</span>. Thank you!';
+            if (subtitle) subtitle.innerHTML   = 'You have successfully claimed your <span class="text-blue-600 font-black">' + logData.activity.replace('Document Pick-up: ', '') + '</span>. Thank you!';
         } else {
             if (heading)  heading.textContent  = 'Request Logged!';
-            if (subtitle) subtitle.innerHTML   = 'Your <span id="successDocName" class="text-emerald-600 font-black">' + logData.activity + '</span> has been recorded. Please wait for staff assistance.';
+            if (subtitle) subtitle.innerHTML   = 'Your <span class="text-blue-600 font-black">' + logData.activity + '</span> has been recorded. Please wait for staff assistance.';
         }
 
         // ── Status badge ──

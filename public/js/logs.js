@@ -127,6 +127,24 @@ class LogsManager {
                     });
                 }
             } catch (e) { console.error('Failed to populate report faculty filter:', e); }
+
+            // Populate activity filter for report generation
+            if (this.systemSettings && this.systemSettings.activities) {
+                try {
+                    const parsed = JSON.parse(this.systemSettings.activities);
+                    const reportActivityFilter = document.getElementById('reportActivityFilter');
+                    if (reportActivityFilter && Array.isArray(parsed)) {
+                        reportActivityFilter.innerHTML = '<option value="">All Transaction Types</option>';
+                        parsed.forEach(act => {
+                            const name = typeof act === 'object' ? act.name : act;
+                            const opt = document.createElement('option');
+                            opt.value = name;
+                            opt.textContent = name;
+                            reportActivityFilter.appendChild(opt);
+                        });
+                    }
+                } catch (e) { }
+            }
         } catch (e) { /* proceed with defaults */ }
 
         // Only initialize if we're on the dashboard page
@@ -158,6 +176,9 @@ class LogsManager {
         if (exportBtn)        exportBtn.addEventListener('click',    () => this.exportToCSV());
         if (generateReportBtn) generateReportBtn.addEventListener('click', () => this.generatePDFReport());
         if (deleteEntryBtn)   deleteEntryBtn.addEventListener('click', () => this.deleteCurrentEntry());
+
+        const insightTimeFilter = document.getElementById('insightTimeFilter');
+        if (insightTimeFilter) insightTimeFilter.addEventListener('change', () => this.updateInsights());
 
         if (refreshBtn) {
             refreshBtn.addEventListener('click', () => this.loadEntries());
@@ -356,6 +377,7 @@ class LogsManager {
         this.currentPage = 1;
         this.displayEntries();
         this.updateInsights();
+        this.updateAnalytics();
     }
 
     displayEntries() {
@@ -498,6 +520,7 @@ class LogsManager {
             set('pendingCount', stats.todayPending || 0);
             set('outCount', stats.todayOut || 0);
             set('monthCount', stats.monthTotal || 0);
+            set('overallCount', stats.overallTotal || 0);
 
             // Show red badge on Bulk Approve button if pending > 0
             const badge = document.getElementById('pendingBadge');
@@ -1537,36 +1560,24 @@ class LogsManager {
     formatTime(timeValue) {
         if (!timeValue) return 'N/A';
 
-        // Firestore Admin SDK REST response: { _seconds, _nanoseconds }
+        const options = {
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: true
+        };
+
         if (typeof timeValue === 'object' && timeValue._seconds !== undefined) {
-            return new Date(timeValue._seconds * 1000).toLocaleTimeString('en-PH', {
-                hour: '2-digit',
-                minute: '2-digit',
-                second: '2-digit',
-                hour12: true
-            });
+            return new Date(timeValue._seconds * 1000).toLocaleTimeString('en-PH', options);
         }
 
-        // Firestore client SDK Timestamp object
         if (timeValue.toDate) {
-            return timeValue.toDate().toLocaleTimeString('en-PH', {
-                hour: '2-digit',
-                minute: '2-digit',
-                second: '2-digit',
-                hour12: true
-            });
+            return timeValue.toDate().toLocaleTimeString('en-PH', options);
         }
 
-        // ISO string or other date string
         if (typeof timeValue === 'string') {
             const d = new Date(timeValue);
             if (!isNaN(d)) {
-                return d.toLocaleTimeString('en-PH', {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                    second: '2-digit',
-                    hour12: true
-                });
+                return d.toLocaleTimeString('en-PH', options);
             }
         }
 
@@ -1622,16 +1633,16 @@ class LogsManager {
                 return matchesTime && matchesActivity && matchesFaculty;
             });
 
-            if (timeValue === 'today') timeframeText = 'Daily Report (Today)';
-            else if (timeValue === 'week') timeframeText = 'Weekly Report (Last 7 Days)';
-            else if (timeValue === 'month') timeframeText = 'Monthly Report (Last 30 Days)';
+            if (timeValue === 'today') timeframeText = 'Daily';
+            else if (timeValue === 'week') timeframeText = 'Weekly';
+            else if (timeValue === 'month') timeframeText = 'Monthly';
 
             if (activityValue) {
-                timeframeText += ` - ${activityValue}`;
+                timeframeText += ` • ${activityValue}`;
                 reportTitle = `${activityValue} Report`;
             }
             if (facultyValue) {
-                timeframeText += ` (Faculty: ${facultyValue})`;
+                timeframeText += ` • ${facultyValue}`;
                 reportTitle += ` - ${facultyValue}`;
             }
         }
@@ -1672,20 +1683,44 @@ class LogsManager {
         doc.setFontSize(12);
         doc.text(`${timeframeText} Insights`, 15, 60);
 
+        const pendingCount = reportEntries.filter(e => (e.status || 'pending') === 'pending').length;
+        const completedCount = reportEntries.filter(e => e.status === 'completed' || e.status === 'claimed').length;
         const activeNow = reportEntries.filter(e => !e.timeOutFormatted).length;
+
+        const completedLogs = reportEntries.filter(e => e.timeIn && e.timeOut);
+        let avgServiceTime = '0m';
+        if (completedLogs.length > 0) {
+            const totalMs = completedLogs.reduce((acc, e) => {
+                const s = this.getTimestamp(e.timeIn);
+                const o = this.getTimestamp(e.timeOut);
+                return acc + (o - s);
+            }, 0);
+            const avgMins = Math.floor(totalMs / (completedLogs.length * 60000));
+            const h = Math.floor(avgMins / 60);
+            const m = avgMins % 60;
+            avgServiceTime = h > 0 ? `${h}h ${m}m` : `${m}m`;
+        }
+        
         const stats = [
-            `Total Entries: ${reportEntries.length} logs`,
-            `Currently Active: ${activeNow} visitors`
+            `Total: ${reportEntries.length}`,
+            `Pending: ${pendingCount}`,
+            `Completed: ${completedCount}`,
+            `Active Now: ${activeNow}`,
+            `Avg. Service: ${avgServiceTime}`
         ];
 
-        doc.setFontSize(10);
+        doc.setFontSize(9);
         doc.setTextColor(71, 85, 105); // slate-600
         stats.forEach((stat, i) => {
-            doc.text(stat, 15 + (i * 70), 70);
+            doc.text(stat, 15 + (i * 38), 70);
         });
 
         // Table
         const headers = [['Date', 'Visitor Name', 'Activity', 'Staff', 'NFC Chip', 'In/Out']];
+        if (facultyValue) {
+            headers[0].splice(3, 1); // Remove Staff col
+        }
+
         const data = reportEntries.map(entry => {
             let displayName = entry.studentName;
             const duration = this.calculateDuration(entry.timeIn, entry.timeOut);
@@ -1697,7 +1732,7 @@ class LogsManager {
                 }
             }
 
-            return [
+            const row = [
                 entry.date || 'N/A',
                 displayName,
                 (entry.activity || '—').replace('[Parent] ', '').replace('[Visitor] ', ''),
@@ -1705,8 +1740,11 @@ class LogsManager {
                 (entry.studentNumber === 'PARENT_VISIT' || entry.studentNumber === 'VISITOR_VISIT')
                     ? (entry.studentId || (entry.studentNumber === 'PARENT_VISIT' ? 'Parent' : 'Visitor'))
                     : (entry.studentNumber || '—'),
-                `${this.formatTime(entry.timeIn)} - ${entry.timeOutFormatted || 'Active'} ${duration ? `(${duration})` : ''}`
+                `${this.formatTime(entry.timeIn)} - ${entry.timeOutFormatted || 'Active'} ${duration ? `(Service: ${duration})` : ''}`
             ];
+
+            if (facultyValue) row.splice(3, 1);
+            return row;
         });
 
         doc.autoTable({

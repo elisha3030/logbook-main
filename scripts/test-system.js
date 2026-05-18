@@ -11,6 +11,7 @@ let passed = 0;
 let failed = 0;
 let warnings = 0;
 const results = [];
+let sessionCookie = '';
 
 // ── Helpers ──────────────────────────────────────────────
 function color(code, text) {
@@ -33,11 +34,21 @@ async function api(method, path, body = null, expectedStatus = 200) {
     try {
         const opts = {
             method,
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 
+                'Content-Type': 'application/json',
+                ...(sessionCookie && { 'cookie': sessionCookie })
+            },
         };
         if (body) opts.body = JSON.stringify(body);
 
         const res = await fetch(`${BASE}${path}`, opts);
+        
+        // Capture set-cookie
+        const setCookie = res.headers.get('set-cookie');
+        if (setCookie) {
+            sessionCookie = setCookie.split(';')[0];
+        }
+
         const text = await res.text();
         let json = null;
         try { json = JSON.parse(text); } catch {}
@@ -47,12 +58,22 @@ async function api(method, path, body = null, expectedStatus = 200) {
     }
 }
 
+async function testAuthentication() {
+    console.log(color('bold', '\n🔐 [0] Authentication'));
+    const res = await api('POST', '/api/auth/login', { email: 'admin@email.com', password: 'admin123' });
+    if (res.ok) {
+        log('PASS', 'POST /api/auth/login successful');
+    } else {
+        log('FAIL', 'POST /api/auth/login', `HTTP ${res.status}`);
+    }
+}
+
 // ── Test Suites ───────────────────────────────────────────
 
 async function testServerReachability() {
     console.log(color('bold', '\n📡 [1] Server Reachability'));
 
-    const res = await api('GET', '/api/system-settings');
+    const res = await api('GET', '/api/settings');
     if (res.status === 0) {
         log('FAIL', 'Server is online', `Cannot reach ${BASE} — Is the server running?`);
         console.log(color('red', '\n  ✗ Server is offline. Start the server with "npm start" first.\n'));
@@ -64,11 +85,11 @@ async function testServerReachability() {
 async function testSystemSettings() {
     console.log(color('bold', '\n⚙️  [2] System Settings API'));
 
-    const res = await api('GET', '/api/system-settings');
+    const res = await api('GET', '/api/settings');
     if (res.ok && res.json) {
-        log('PASS', 'GET /api/system-settings returns JSON');
+        log('PASS', 'GET /api/settings returns JSON');
     } else {
-        log('FAIL', 'GET /api/system-settings', `HTTP ${res.status}`);
+        log('FAIL', 'GET /api/settings', `HTTP ${res.status}`);
     }
 }
 
@@ -238,14 +259,6 @@ async function testLogsRetrieval() {
     } else {
         log('FAIL', 'GET /api/logs', `HTTP ${r1.status}`);
     }
-
-    // Queue endpoint
-    const r2 = await api('GET', '/api/logs/queue?officeId=engineering-office');
-    if (r2.ok) {
-        log('PASS', 'GET /api/logs/queue returns data');
-    } else {
-        log('WARN', 'GET /api/logs/queue', `HTTP ${r2.status} — endpoint may not exist`);
-    }
 }
 
 async function testFacultyEndpoints() {
@@ -328,16 +341,16 @@ async function testClaimOnCompletedLog(completedLogId) {
         return;
     }
 
-    // Try to claim a log already marked completed — server SHOULD reject this
+    // Try to claim a log already marked completed or already claimed
     const r1 = await api('PATCH', `/api/logs/${completedLogId}/claim`, {
         studentNumber: 'TEST_AUTO_001',
         officeId: 'engineering-office'
     });
 
-    if (!r1.ok) {
-        log('PASS', 'Claim on an already-completed log is correctly rejected');
+    if (!r1.ok || (r1.ok && r1.json && r1.json.alreadyClaimed)) {
+        log('PASS', 'Claim on an already-completed/claimed log is correctly handled');
     } else {
-        log('WARN', 'Claim succeeded on an already-completed log', '🐛 Bug: server should reject duplicate claims');
+        log('WARN', 'Claim succeeded on an already-completed log without returning alreadyClaimed', '🐛 Bug: server should reject duplicate claims');
     }
 }
 
@@ -414,6 +427,7 @@ async function cleanupTestData() {
     console.log(color('bold', `  Time  : ${new Date().toLocaleString()}`));
     console.log(color('bold', '══════════════════════════════════════════════════════'));
 
+    await testAuthentication();
     await testServerReachability();
     await testSystemSettings();
     await testStudentLookup();

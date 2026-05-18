@@ -230,6 +230,9 @@ async function initializeLocalDb() {
     try { await localDb.exec('ALTER TABLE logs ADD COLUMN signedAt TEXT'); } catch (e) { }
     try { await localDb.exec('ALTER TABLE logs ADD COLUMN remoteApproval INTEGER DEFAULT 0'); } catch (e) { }
 
+    // staffAccountEmail — links the log to the faculty's account email for alert routing
+    try { await localDb.exec('ALTER TABLE logs ADD COLUMN staffAccountEmail TEXT'); } catch (e) { }
+
     // Add serviceStartTime column if it doesn't exist
     try {
         await localDb.exec('ALTER TABLE logs ADD COLUMN serviceStartTime TEXT');
@@ -468,27 +471,53 @@ async function sendStudentNotification(targetEmail, studentName, activity, type 
     }
 }
 
-async function sendFacultyNotification(studentName, activity, facultyEmail) {
-    // Only send if we have a target email and SMTP is configured
-    const targetEmail = facultyEmail || process.env.SMTP_USER; // Fallback to system email if no specific staff
-    if (!targetEmail || !process.env.SMTP_USER) return;
+// Resolve the account email for a given staff display name from admin_users.
+// Falls back to the staffEmail field on the log, then to the system SMTP user.
+async function resolveFacultyEmail(staffDisplayName, fallbackEmail) {
+    if (!staffDisplayName) return fallbackEmail || null;
+    try {
+        const row = await localDb.get(
+            'SELECT email FROM admin_users WHERE LOWER(TRIM(displayName)) = LOWER(TRIM(?))',
+            [staffDisplayName]
+        );
+        if (row && row.email) return row.email;
+    } catch (_) { }
+    return fallbackEmail || null;
+}
 
-    const subject = `📥 New Document Request: ${studentName}`;
+async function sendFacultyNotification(studentName, activity, staffDisplayName, fallbackEmail) {
+    if (!process.env.SMTP_USER) return;
+
+    // Look up the faculty's own account email first, then fall back
+    const targetEmail = await resolveFacultyEmail(staffDisplayName, fallbackEmail) || process.env.SMTP_USER;
+    if (!targetEmail) return;
+
+    const now = new Date().toLocaleString('en-PH', { dateStyle: 'medium', timeStyle: 'short' });
+    const hubUrl = `${process.env.APP_URL || 'http://localhost:3000'}/faculty.html`;
+
+    const subject = `📬 New Pending Request — ${studentName}`;
     const mailOptions = {
         from: process.env.EMAIL_FROM || `"Logbook System" <${process.env.SMTP_USER}>`,
         to: targetEmail,
         subject: subject,
         html: `
-            <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden;">
-                <div style="background-color: #f59e0b; color: white; padding: 24px; text-align: center;">
-                    <h1 style="margin: 0; font-size: 20px;">New Request Received</h1>
+            <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0,0,0,.1);">
+                <div style="background: linear-gradient(135deg,#f59e0b,#d97706); color: white; padding: 28px 24px; text-align: center;">
+                    <p style="margin:0;font-size:13px;opacity:.85;letter-spacing:.1em;text-transform:uppercase;">Faculty Hub Alert</p>
+                    <h1 style="margin:8px 0 0;font-size:22px;font-weight:800;">📬 New Pending Request</h1>
                 </div>
-                <div style="padding: 32px 24px; color: #1e293b;">
-                    <p>A new document request has been submitted by <strong>${studentName}</strong>.</p>
-                    <p><strong>Activity:</strong> ${activity}</p>
-                    <p style="margin-top: 24px;">Please log in to the Faculty Hub to start processing this request.</p>
-                    <hr style="border: 0; border-top: 1px solid #f1f5f9; margin: 24px 0;">
-                    <p style="font-size: 11px; color: #94a3b8; text-align: center;">Logbook Notification System</p>
+                <div style="padding: 28px 24px; color: #1e293b; line-height:1.6;">
+                    <table style="width:100%;border-collapse:collapse;font-size:14px;">
+                        <tr><td style="padding:8px 0;color:#64748b;width:130px;">Student</td><td style="padding:8px 0;font-weight:700;">${studentName}</td></tr>
+                        <tr><td style="padding:8px 0;color:#64748b;">Request</td><td style="padding:8px 0;font-weight:700;">${activity}</td></tr>
+                        <tr><td style="padding:8px 0;color:#64748b;">Submitted</td><td style="padding:8px 0;">${now}</td></tr>
+                    </table>
+                    <div style="margin-top:24px;text-align:center;">
+                        <a href="${hubUrl}" style="display:inline-block;background:#2563eb;color:white;font-weight:700;padding:12px 28px;border-radius:10px;text-decoration:none;font-size:14px;">Open Faculty Hub →</a>
+                    </div>
+                </div>
+                <div style="padding:16px 24px;background:#f8fafc;border-top:1px solid #f1f5f9;text-align:center;">
+                    <p style="font-size:11px;color:#94a3b8;margin:0;">Automated alert from the Logbook System. Do not reply.</p>
                 </div>
             </div>
         `
@@ -496,9 +525,9 @@ async function sendFacultyNotification(studentName, activity, facultyEmail) {
 
     try {
         await transporter.sendMail(mailOptions);
-        console.log(`📧 Faculty notification sent to ${targetEmail}`);
+        console.log(`📧 Faculty alert sent to ${targetEmail} (staff: ${staffDisplayName || 'unknown'})`);
     } catch (error) {
-        console.warn(`❌ Failed to send faculty notification:`, error.message);
+        console.warn(`❌ Failed to send faculty alert:`, error.message);
     }
 }
 
@@ -588,18 +617,20 @@ app.get('/api/logs/stats', async (req, res) => {
         const today = new Date().toLocaleDateString('en-CA');
         const monthPrefix = today.substring(0, 7); // YYYY-MM
 
-        const [todayIn, todayPending, todayOut, monthTotal] = await Promise.all([
+        const [todayIn, todayPending, todayOut, monthTotal, overallTotal] = await Promise.all([
             localDb.get('SELECT COUNT(*) as count FROM logs WHERE officeId = ? AND date = ?', [officeId, today]),
             localDb.get('SELECT COUNT(*) as count FROM logs WHERE officeId = ? AND date = ? AND (status IS NULL OR status = "pending")', [officeId, today]),
             localDb.get('SELECT COUNT(*) as count FROM logs WHERE officeId = ? AND date = ? AND (status = "completed" OR status = "claimed")', [officeId, today]),
-            localDb.get('SELECT COUNT(*) as count FROM logs WHERE officeId = ? AND date LIKE ?', [officeId, monthPrefix + '%'])
+            localDb.get('SELECT COUNT(*) as count FROM logs WHERE officeId = ? AND date LIKE ?', [officeId, monthPrefix + '%']),
+            localDb.get('SELECT COUNT(*) as count FROM logs WHERE officeId = ?', [officeId])
         ]);
 
         res.json({
             todayIn: todayIn.count || 0,
             todayPending: todayPending.count || 0,
             todayOut: todayOut.count || 0,
-            monthTotal: monthTotal.count || 0
+            monthTotal: monthTotal.count || 0,
+            overallTotal: overallTotal.count || 0
         });
     } catch (error) {
         console.error('Error fetching stats:', error);
@@ -1235,8 +1266,8 @@ app.post('/api/register-log', uploadDocs.single('softCopy'), async (req, res) =>
             if (targetEmail) {
                 sendStudentNotification(targetEmail, logData.studentName, logData.activity, 'received');
             }
-            // Notify faculty as well
-            sendFacultyNotification(logData.studentName, logData.activity, logData.staffEmail);
+            // Notify assigned faculty via their account email (resolved by display name)
+            sendFacultyNotification(logData.studentName, logData.activity, logData.staff, logData.staffEmail);
         }
     } catch (error) {
         console.error('Error registering student/log:', error);
@@ -1339,8 +1370,8 @@ app.post('/api/logs', uploadDocs.single('softCopy'), async (req, res) => {
             if (targetEmail) {
                 sendStudentNotification(targetEmail, logData.studentName, logData.activity, 'received');
             }
-            // Notify faculty as well
-            sendFacultyNotification(logData.studentName, logData.activity, logData.staffEmail);
+            // Notify assigned faculty via their account email (resolved by display name)
+            sendFacultyNotification(logData.studentName, logData.activity, logData.staff, logData.staffEmail);
         }
     } catch (error) {
         console.error('Error logging visit locally:', error);

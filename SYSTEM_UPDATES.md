@@ -1,4 +1,4 @@
-# Logbook System - System Updates (v2.2)
+# Logbook System - System Updates (v2.3)
 
 This document summarizes the major improvements and architectural changes made to the system to ensure cross-device consistency and reliability.
 
@@ -18,8 +18,21 @@ This document summarizes the major improvements and architectural changes made t
 *   **Automatic Setup:** When you launch the app on a new device, it will automatically pull your existing configuration from the cloud.
 *   **Authoritative Cloud Logic:** If you change a setting on one computer, it will "magically" update on your other devices within minutes.
 
-## 4. Architectural Improvements
-*   **Offline-First Resilience:** All data is still saved to the local **SQLite** database first. The app remains 100% functional without an internet connection.
+## 4. Analytics & Dashboard Intelligence
+*   **Real-time Statistics Engine:** Implemented a backend stats aggregator (`/api/logs/stats`) that calculates "Today's In," "Pending," and "Completed" logs instantly.
+*   **Interactive Analytics Suite:** Activated the Chart.js visualizer for the administrative dashboard.
+    *   **Peak Hours:** View traffic spikes to optimize staffing.
+    *   **Weekly Trends:** Track visitor volume over a rolling 7-day period.
+    *   **Visitor Share:** Doughnut chart breakdown of Student vs. Guest demographics.
+*   **Smart Activity Share:** Added timeframe filtering (Today/Week/Month) to the department activity insights panel.
+
+## 5. Architectural Stability & API Resilience
+*   **Dashboard Structure Fix:** Corrected broken HTML nesting that compromised the dashboard grid and sticky navigation headers.
+*   **API Health:** Resolved JSON parsing errors and 404 fallbacks by ensuring endpoint parity between the frontend and backend.
+*   **Enhanced Log Management:** Admins can now delete logs directly from the dashboard with automatic local-to-cloud reconciliation and audit logging.
+
+## 6. Offline-First Resilience
+*   All data is still saved to the local **SQLite** database first. The app remains 100% functional without an internet connection.
 *   **Bidirectional Sync:** Improved the handshake between local storage and Firebase to prevent data loss during startup and background operations.
 *   **Sync Heartbeat:** Added a background process that keeps students, logs, and settings in sync without slowing down the user interface.
 
