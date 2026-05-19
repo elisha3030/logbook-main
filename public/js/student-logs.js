@@ -1077,8 +1077,8 @@ class StudentKioskManager {
                 course:        this.currentStudent.Course || this.currentStudent.course || 'N/A',
                 date:          new Date().toISOString().split('T')[0],
                 docStatus:     'Out',
-                status:        'pending', // Manual log out required
-                timeOut:       null       // Manual log out required
+                status:        'completed', // Auto-complete pick-up actions
+                timeOut:       new Date().toISOString()
             };
 
             await fetch('/api/logs', {
@@ -1605,6 +1605,9 @@ class StudentKioskManager {
         // Use FormData for file upload
         const formData = new FormData();
         
+        const isInstantComplete = this.selectedActivity === 'Document Submission' || 
+                                  String(this.selectedDocument?.name || '').toLowerCase().startsWith('document pick-up');
+
         const logData = {
             studentNumber: this.currentStudent.id,
             studentName:   this.currentStudent.name,
@@ -1615,9 +1618,9 @@ class StudentKioskManager {
             yearLevel:     this.currentStudent['Year Level'] || this.currentStudent.yearLevel || 'N/A',
             course:        this.currentStudent.Course || this.currentStudent.course || 'N/A',
             date:          new Date().toISOString().split('T')[0],
-            docStatus:     'In',
-            status:        this.selectedActivity === 'Document Submission' ? 'completed' : 'pending',
-            timeOut:       this.selectedActivity === 'Document Submission' ? new Date().toISOString() : null
+            docStatus:     String(this.selectedDocument?.name || '').toLowerCase().startsWith('document pick-up') ? 'Out' : 'In',
+            status:        isInstantComplete ? 'completed' : 'pending',
+            timeOut:       isInstantComplete ? new Date().toISOString() : null
         };
 
         // Append logData as a JSON string or individual fields
