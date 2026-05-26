@@ -9,7 +9,6 @@
     <script src="/vendor/tailwindcss.js"></script>
     <script src="/js/lucide.js"></script>
     <link rel="stylesheet" href="css/style.css">
-    <script src="https://cdn.jsdelivr.net/npm/signature_pad@4.1.7/dist/signature_pad.umd.min.js"></script>
     <style>
         .staff-card-stat { transition: all 0.2s ease; }
         .staff-card-stat:hover { transform: translateY(-2px); }
@@ -130,42 +129,7 @@
                 </div>
             </section>
 
-            <!-- Transaction Log Section -->
-            <section id="logSection">
-                <div class="flex items-center justify-between mb-6">
-                    <h2 class="text-sm font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.15em]">Transaction Log</h2>
-                    <div class="flex items-center gap-3">
-                        <select id="staffFilter" class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2 text-xs font-bold focus:ring-2 focus:ring-violet-400 outline-none">
-                            <option value="">All Staff</option>
-                        </select>
-                        <select id="statusFilter" class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2 text-xs font-bold focus:ring-2 focus:ring-violet-400 outline-none">
-                            <option value="">All Statuses</option>
-                            <option value="pending">Pending</option>
-                            <option value="completed">Completed</option>
-                            <option value="claimed">Claimed</option>
-                        </select>
-                    </div>
-                </div>
-                
-                <div class="bg-white dark:bg-slate-800 rounded-[2rem] border border-slate-200 dark:border-slate-700 overflow-hidden shadow-sm">
-                    <div class="overflow-x-auto">
-                        <table class="w-full text-left">
-                            <thead class="bg-[#64748B] text-white">
-                                <tr>
-                                    <th class="px-8 py-5 text-[10px] font-black uppercase tracking-widest">Date & Time</th>
-                                    <th class="px-8 py-5 text-[10px] font-black uppercase tracking-widest">Student</th>
-                                    <th class="px-8 py-5 text-[10px] font-black uppercase tracking-widest">Transaction</th>
-                                    <th class="px-8 py-5 text-[10px] font-black uppercase tracking-widest">Staff</th>
-                                    <th class="px-8 py-5 text-center text-[10px] font-black uppercase tracking-widest">Status</th>
-                                </tr>
-                            </thead>
-                            <tbody id="logTableBody" class="divide-y divide-slate-100 dark:divide-slate-700">
-                                <!-- Populated via JS -->
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </section>
+
 
         </div>
     </main>
@@ -256,42 +220,6 @@
         </div>
     </div>
 
-    <!-- Remote Sign Modal -->
-    <div id="remoteSignModal" class="hidden fixed inset-0 z-[120] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-md animate-in fade-in duration-300">
-        <div class="relative bg-white dark:bg-slate-800 rounded-[3.5rem] shadow-2xl max-w-lg w-full overflow-hidden flex flex-col animate-in zoom-in-95 duration-300">
-            <div class="p-8 text-center bg-blue-50/50 dark:bg-blue-900/10 border-b border-slate-100 dark:border-slate-700">
-                <div class="w-16 h-16 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-600 mx-auto flex items-center justify-center mb-4">
-                    <i data-lucide="pen-tool" class="w-8 h-8"></i>
-                </div>
-                <h3 class="text-2xl font-black text-slate-800 dark:text-white">Remote Approval</h3>
-                <p class="text-slate-500 dark:text-slate-400 font-medium text-sm mt-1">Please provide your signature to approve this request.</p>
-            </div>
-            
-            <div class="p-8 space-y-6">
-                <div class="relative bg-slate-50 dark:bg-slate-900/50 rounded-[2rem] border-2 border-dashed border-slate-200 dark:border-slate-700 p-4">
-                    <canvas id="signaturePad" class="w-full h-48 rounded-xl"></canvas>
-                    <button onclick="clearSignature()" class="absolute top-4 right-4 p-2 bg-white dark:bg-slate-800 rounded-lg shadow-sm text-slate-400 hover:text-red-500 transition-all border border-slate-100 dark:border-slate-700">
-                        <i data-lucide="rotate-ccw" class="w-4 h-4"></i>
-                    </button>
-                    <div class="absolute bottom-4 left-0 right-0 text-center pointer-events-none">
-                        <p class="text-[9px] font-black uppercase tracking-widest text-slate-300">Sign within the area</p>
-                    </div>
-                </div>
-
-                <div class="bg-blue-50/50 dark:bg-blue-900/5 p-4 rounded-2xl border border-blue-100 dark:border-blue-900/20">
-                    <p class="text-[10px] font-bold text-blue-600/70 dark:text-blue-400/70 leading-relaxed text-center">
-                        This signature will be electronically attached to the document and a notification will be sent to the student.
-                    </p>
-                </div>
-            </div>
-
-            <div class="p-8 border-t border-slate-100 dark:border-slate-700 flex gap-4 bg-white dark:bg-slate-800">
-                <button onclick="closeSignModal()" class="flex-1 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 font-black py-4 rounded-2xl transition-all active:scale-95 text-[10px] uppercase tracking-widest">Cancel</button>
-                <button id="submitSignBtn" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-black py-4 rounded-2xl shadow-xl shadow-blue-500/20 transition-all active:scale-95 text-[10px] uppercase tracking-widest">Confirm & Sign</button>
-            </div>
-        </div>
-    </div>
-
     <script type="module">
         const OFFICE_ID = 'engineering-office';
         let allLogs = [];
@@ -361,13 +289,6 @@
             setEl('summToday', allStats.reduce((a,s)=>a+s.today, 0));
             setEl('summPending', allStats.reduce((a,s)=>a+s.pending, 0));
             setEl('summCompleted', allStats.reduce((a,s)=>a+s.completed, 0));
-
-            // Staff Filter Dropdown
-            const staffFilter = document.getElementById('staffFilter');
-            const currentStaff = staffFilter.value;
-            staffFilter.innerHTML = '<option value="">All Staff</option>' + 
-                allStats.map(s => `<option value="${s.name}">${s.name}</option>`).join('');
-            staffFilter.value = currentStaff;
 
             // Staff Cards
             const grid = document.getElementById('staffGrid');
@@ -446,67 +367,8 @@
                 </div>`;
             }).join('');
 
-            renderTable();
             if(window.lucide) lucide.createIcons();
         }
-
-        function renderTable() {
-            const tbody = document.getElementById('logTableBody');
-            const sVal = document.getElementById('staffFilter').value.toLowerCase();
-            const stVal = document.getElementById('statusFilter').value.toLowerCase();
-
-            const filtered = allLogs.filter(l => {
-                const matchStaff = !sVal || (l.staff||'').toLowerCase().includes(sVal);
-                const matchStatus = !stVal || (l.status||'pending').toLowerCase() === stVal;
-                return matchStaff && matchStatus;
-            });
-
-            if(filtered.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="5" class="px-8 py-16 text-center">
-                    <div class="flex flex-col items-center gap-2 text-slate-300 dark:text-slate-600">
-                        <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
-                        <p class="font-black text-xs uppercase tracking-widest">No transactions found</p>
-                        <p class="text-[10px] font-medium">Try adjusting the filters or date range above</p>
-                    </div>
-                </td></tr>`;
-                return;
-            }
-
-            const maxRows = 10;
-            const displayedLogs = filtered.slice(0, maxRows);
-
-            let html = displayedLogs.map(l => {
-                const status = (l.status || 'pending').toLowerCase();
-                let pill = `<span class="bg-amber-100 text-amber-700 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider">Pending</span>`;
-                if(status === 'completed') pill = `<span class="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider">Completed</span>`;
-                if(status === 'claimed') pill = `<span class="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider">Claimed</span>`;
-
-                return `
-                <tr class="hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors">
-                    <td class="px-8 py-6 text-xs text-slate-500 font-bold">${formatDateTime(l.timeIn || l.timestamp)}</td>
-                    <td class="px-8 py-6">
-                        <p class="font-black text-slate-900 dark:text-white text-sm">${l.studentName || '---'}</p>
-                        <p class="text-[10px] font-bold text-slate-400">${l.studentNumber || ''}</p>
-                    </td>
-                    <td class="px-8 py-6 text-sm font-bold text-slate-700 dark:text-slate-300">${l.activity || '---'}</td>
-                    <td class="px-8 py-6 text-sm font-bold text-violet-600 dark:text-violet-400">${l.staff || '---'}</td>
-                    <td class="px-8 py-6 text-center">${pill}</td>
-                </tr>`;
-            }).join('');
-
-            if (filtered.length > maxRows) {
-                html += `<tr><td colspan="5" class="px-8 py-4 text-center text-xs font-bold text-slate-400">Showing 10 of ${filtered.length} transactions. View Log History for more.</td></tr>`;
-            }
-
-            tbody.innerHTML = html;
-        }
-
-        window.filterTable = (staff, status) => {
-            document.getElementById('staffFilter').value = staff;
-            document.getElementById('statusFilter').value = status;
-            renderTable();
-            document.getElementById('logSection').scrollIntoView({ behavior: 'smooth' });
-        };
 
         window.openStaffModal = (staffName) => {
             const s = allStats.find(x => x.name === staffName);
@@ -562,23 +424,19 @@
                             <div class="flex flex-col items-end gap-1">
                                  <span class="px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest ${t.status === 'in-service' ? 'bg-blue-50 text-blue-600 dark:bg-blue-900/20' : 'bg-amber-50 text-amber-600 dark:bg-amber-900/20'}">
                                     ${t.status === 'in-service' ? 'Processing' : 'Pending'}
-                                </span>
+                                 </span>
                                 <span class="text-[9px] font-bold text-slate-300">${formatDateTime(t.timeIn).split(',')[1]}</span>
                             </div>
                         </div>
-                        
-                        <div class="flex gap-2">
-                            ${hasAttachment ? `
+
+                        ${hasAttachment ? `
+                            <div class="flex gap-2">
                                 <button onclick="viewAttachment('${t.softCopyPath}')" class="flex-1 flex items-center justify-center gap-2 bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/20 dark:hover:bg-blue-900/30 text-blue-600 dark:text-blue-400 font-black py-2.5 rounded-xl text-[9px] uppercase tracking-widest transition-all">
                                     <i data-lucide="paperclip" class="w-3.5 h-3.5"></i>
                                     View Attachment
                                 </button>
-                            ` : ''}
-                            <button onclick="handleRemoteSign(${t.id})" class="flex-1 flex items-center justify-center gap-2 bg-[#8B5CF6] hover:bg-violet-700 text-white font-black py-2.5 rounded-xl text-[9px] uppercase tracking-widest transition-all shadow-lg shadow-violet-500/20">
-                                <i data-lucide="signature" class="w-3.5 h-3.5"></i>
-                                Approve & Sign
-                            </button>
-                        </div>
+                            </div>
+                        ` : ''}
                     </div>
                 `;}).join('');
             }
@@ -598,12 +456,11 @@
         window.viewFullLogFromModal = () => {
             const staffName = document.getElementById('staffModal').dataset.currentStaff;
             closeModal();
-            filterTable(staffName, '');
+            // Redirect to history.html with staff search query
+            window.location.href = `history.html?search=${encodeURIComponent(staffName)}`;
         };
 
-        // Remote Signing & Proof Viewing (NEW)
-        let signaturePad = null;
-        let currentSignLogId = null;
+        // Proof Viewing
 
         window.viewAttachment = (path) => {
             const modal = document.getElementById('proofViewerModal');
@@ -637,89 +494,11 @@
             document.getElementById('proofPdfElement').src = '';
         };
 
-        window.handleRemoteSign = (logId) => {
-            currentSignLogId = logId;
-            const modal = document.getElementById('remoteSignModal');
-            modal.classList.remove('hidden');
-            
-            const canvas = document.getElementById('signaturePad');
-            if (!signaturePad) {
-                signaturePad = new SignaturePad(canvas, {
-                    backgroundColor: 'rgba(0,0,0,0)',
-                    penColor: 'rgb(30, 41, 59)'
-                });
-            } else {
-                signaturePad.clear();
-            }
-
-            // Resize canvas
-            const ratio = Math.max(window.devicePixelRatio || 1, 1);
-            canvas.width = canvas.offsetWidth * ratio;
-            canvas.height = canvas.offsetHeight * ratio;
-            canvas.getContext("2d").scale(ratio, ratio);
-            signaturePad.clear();
-
-            if (window.lucide) lucide.createIcons();
-        };
-
-        window.closeSignModal = () => {
-            document.getElementById('remoteSignModal').classList.add('hidden');
-            currentSignLogId = null;
-        };
-
-        window.clearSignature = () => {
-            if (signaturePad) signaturePad.clear();
-        };
-
-        document.getElementById('submitSignBtn')?.addEventListener('click', async () => {
-            if (!signaturePad || signaturePad.isEmpty()) {
-                alert('Please provide a signature first.');
-                return;
-            }
-
-            const signatureData = signaturePad.toDataURL(); // Base64
-            const btn = document.getElementById('submitSignBtn');
-            btn.disabled = true;
-            btn.textContent = 'Processing…';
-
-            const staffName = document.getElementById('staffModal').dataset.currentStaff;
-
-            try {
-                const res = await fetch(`/api/logs/${currentSignLogId}/sign`, {
-                    method: 'PATCH',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        staffName: staffName,
-                        signature: signatureData,
-                        officeId: OFFICE_ID
-                    })
-                });
-
-                if (res.ok) {
-                    closeSignModal();
-                    fetchData(); // Refresh all
-                    // Re-open the staff modal to show it's gone
-                    const staffName = document.getElementById('staffModal').dataset.currentStaff;
-                    if (staffName) setTimeout(() => openStaffModal(staffName), 300);
-                } else {
-                    alert('Failed to submit signature.');
-                }
-            } catch (e) {
-                console.error('Sign error:', e);
-                alert('Network error while signing.');
-            } finally {
-                btn.disabled = false;
-                btn.textContent = 'Confirm & Sign';
-            }
-        });
-
         window.addEventListener('click', (e) => {
             const sModal = document.getElementById('staffModal');
             const pModal = document.getElementById('proofViewerModal');
-            const rModal = document.getElementById('remoteSignModal');
             if (e.target === sModal) closeModal();
             if (e.target === pModal) closeProofModal();
-            if (e.target === rModal) closeSignModal();
         });
 
         function startRefresh() {
@@ -742,9 +521,10 @@
             document.getElementById('endDate').value = '';
             fetchData();
         });
-        document.getElementById('staffFilter').addEventListener('change', renderTable);
-        document.getElementById('statusFilter').addEventListener('change', renderTable);
-        document.getElementById('pendingCard').addEventListener('click', () => filterTable('', 'pending'));
+        document.getElementById('pendingCard').addEventListener('click', () => {
+            // Redirect to dashboard where pending requests can be approved
+            window.location.href = 'dashboard.html';
+        });
 
         // Init
         fetchData();

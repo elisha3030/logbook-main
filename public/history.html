@@ -219,23 +219,32 @@
             <!-- Results Table -->
             <div
                 class="bg-white dark:bg-slate-800 rounded-[2.5rem] shadow-xl border border-slate-200 dark:border-slate-700 overflow-hidden flex flex-col">
+                <!-- Table Toolbar -->
+                <div class="px-8 py-4 border-b border-slate-100 dark:border-slate-700 flex items-center justify-between bg-slate-50/50 dark:bg-slate-900/30">
+                    <div class="flex items-center gap-2">
+                        <div class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
+                        <span id="resultsCountLabel" class="text-[11px] font-black text-slate-400 uppercase tracking-widest">Loading records...</span>
+                    </div>
+                    <span class="text-[10px] font-bold text-slate-300 dark:text-slate-600 uppercase tracking-widest">Audit Log</span>
+                </div>
                 <div class="responsive-table-container">
                     <table class="w-full text-left">
                         <thead
                             class="bg-slate-50 dark:bg-slate-700 text-[10px] font-black uppercase tracking-[0.15em] text-slate-400 dark:text-slate-300 border-b border-slate-100 dark:border-slate-600">
                             <tr>
-                                <th class="px-8 py-5">Timestamp & Date</th>
-                                <th class="px-8 py-5">Visitor Information</th>
-                                <th class="px-6 py-5 text-center">Year Level</th>
-                                <th class="px-6 py-5">Activity</th>
-                                <th class="px-6 py-5 text-center">Duration</th>
-                                <th class="px-6 py-5 text-center">Status</th>
-                                <th class="px-8 py-5 text-right">Handled By</th>
+                                <th class="px-5 py-4">Timestamp & Date</th>
+                                <th class="px-5 py-4">Visitor Information</th>
+                                <th class="px-3 py-4 text-center">Year Level</th>
+                                <th class="px-3 py-4">Activity</th>
+                                <th class="px-3 py-4 text-center">Duration</th>
+                                <th class="px-3 py-4 text-center">Status</th>
+                                <th class="px-3 py-4 text-center">Actions</th>
+                                <th class="px-5 py-4 text-center">Handled By</th>
                             </tr>
                         </thead>
                         <tbody id="historyTableBody" class="divide-y divide-slate-50 dark:divide-slate-700">
                             <tr>
-                                <td colspan="6" class="px-8 py-32 text-center">
+                                <td colspan="8" class="px-8 py-32 text-center">
                                     <div class="flex flex-col items-center justify-center animate-pulse">
                                         <div class="bg-slate-100 w-16 h-16 rounded-full mb-6"></div>
                                         <div class="h-4 bg-slate-100 rounded-full w-48 mb-3"></div>
@@ -257,6 +266,40 @@
     <!-- Toast Notification -->
     <div id="toastContainer" class="fixed bottom-8 right-8 z-[100] flex flex-col gap-3 pointer-events-none items-end">
         <!-- Toasts will be injected here -->
+    </div>
+
+    <!-- Entry Details Modal (Redesigned with Sidebar Look) -->
+    <div id="entryModal"
+        class="fixed inset-0 z-[100] hidden items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+        <div
+            class="bg-white dark:bg-slate-800 rounded-[2.5rem] shadow-2xl w-full max-w-2xl overflow-hidden border border-slate-100 dark:border-slate-700 transition-all">
+            <div class="p-8 pb-0 flex justify-between items-start">
+                <div class="flex items-center gap-4">
+                    <div
+                        class="bg-blue-50 dark:bg-blue-900/30 p-4 rounded-3xl text-blue-600 dark:text-blue-400 shadow-inner">
+                        <i data-lucide="file-text" class="w-8 h-8"></i>
+                    </div>
+                    <div>
+                        <h5 class="text-2xl font-black text-slate-900 dark:text-white tracking-tight">Entry Details</h5>
+                        <p class="text-slate-400 font-bold text-xs uppercase tracking-widest">Transaction Records</p>
+                    </div>
+                </div>
+                <button type="button"
+                    class="bg-slate-50 p-2 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-all"
+                    onclick="document.getElementById('entryModal').classList.add('hidden'); document.getElementById('entryModal').classList.remove('flex')">
+                    <i data-lucide="x" class="w-6 h-6"></i>
+                </button>
+            </div>
+
+            <div id="entryDetails" class="p-8">
+                <!-- Data populated via JS -->
+            </div>
+
+            <div class="p-8 pt-0 flex items-center justify-end gap-3">
+                <button type="button" onclick="document.getElementById('entryModal').classList.add('hidden'); document.getElementById('entryModal').classList.remove('flex')"
+                    class="bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 font-bold px-8 py-3 rounded-2xl hover:-translate-y-1 transition-all">Close</button>
+            </div>
+        </div>
     </div>
 
     <!-- Proof Viewer Modal -->

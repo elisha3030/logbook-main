@@ -148,7 +148,7 @@ class LogsManager {
         } catch (e) { /* proceed with defaults */ }
 
         // Only initialize if we're on the dashboard page
-        if (window.location.pathname.includes('dashboard.html') || document.getElementById('entriesTableBody')) {
+        if (window.location.pathname.includes('dashboard.html') || document.getElementById('pendingTableBody')) {
             this.setupEventListeners();
             this.loadEntries();
         } else {
@@ -241,22 +241,18 @@ class LogsManager {
         try {
             const entriesTableBody = document.getElementById('entriesTableBody');
 
-            // Check if we're on the dashboard page
-            if (!entriesTableBody) {
-                console.log('📊 Not on dashboard page, skipping entries load');
-                return;
+            if (entriesTableBody) {
+                entriesTableBody.innerHTML = `
+                    <tr>
+                        <td colspan="6" class="px-6 py-12 text-center bg-white dark:bg-slate-800">
+                            <div class="flex flex-col items-center justify-center">
+                                <div class="animate-spin rounded-full h-10 w-10 border-4 border-blue-500 border-t-transparent mb-4"></div>
+                                <p class="font-medium text-slate-500">Loading entries...</p>
+                            </div>
+                        </td>
+                    </tr>
+                `;
             }
-
-            entriesTableBody.innerHTML = `
-                <tr>
-                    <td colspan="6" class="px-6 py-12 text-center bg-white dark:bg-slate-800">
-                        <div class="flex flex-col items-center justify-center">
-                            <div class="animate-spin rounded-full h-10 w-10 border-4 border-blue-500 border-t-transparent mb-4"></div>
-                            <p class="font-medium text-slate-500">Loading entries...</p>
-                        </div>
-                    </td>
-                </tr>
-            `;
 
             // Fetch entries from the backend API
             const response = await fetch(`/api/logs?officeId=${this.officeId}`);
@@ -285,22 +281,25 @@ class LogsManager {
 
             this.filteredEntries = [...this.entries];
             this.filterEntries(); // Correctly apply filters after loading
+            this.loadPendingRequests(); // Populate pending requests table
             this.updateStats();
 
         } catch (error) {
             console.error('❌ Error loading entries:', error);
             const entriesTableBody = document.getElementById('entriesTableBody');
-            entriesTableBody.innerHTML = `
-                <tr>
-                    <td colspan="6" class="px-6 py-12 text-center bg-white dark:bg-slate-800">
-                        <div class="p-4 rounded-xl bg-red-50 border border-red-100 text-red-600 inline-block mx-auto">
-                            <i data-lucide="alert-circle" class="w-6 h-6 mx-auto mb-2"></i>
-                            <strong class="block">Error loading entries</strong>
-                            <p class="text-sm mt-1">Please try refreshing the page.</p>
-                        </div>
-                    </td>
-                </tr>
-            `;
+            if (entriesTableBody) {
+                entriesTableBody.innerHTML = `
+                    <tr>
+                        <td colspan="6" class="px-6 py-12 text-center bg-white dark:bg-slate-800">
+                            <div class="p-4 rounded-xl bg-red-50 border border-red-100 text-red-600 inline-block mx-auto">
+                                <i data-lucide="alert-circle" class="w-6 h-6 mx-auto mb-2"></i>
+                                <strong class="block">Error loading entries</strong>
+                                <p class="text-sm mt-1">Please try refreshing the page.</p>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            }
             lucide.createIcons();
         }
     }
@@ -382,6 +381,7 @@ class LogsManager {
 
     displayEntries() {
         const entriesTableBody = document.getElementById('entriesTableBody');
+        if (!entriesTableBody) return;
         const startIndex = (this.currentPage - 1) * this.entriesPerPage;
         const endIndex   = startIndex + this.entriesPerPage;
         const pageEntries = this.filteredEntries.slice(startIndex, endIndex);
@@ -446,6 +446,7 @@ class LogsManager {
 
     updatePagination() {
         const pagination = document.getElementById('pagination');
+        if (!pagination) return;
         const totalPages = Math.ceil(this.filteredEntries.length / this.entriesPerPage);
 
         if (totalPages <= 1) {
@@ -808,14 +809,17 @@ class LogsManager {
         const insightTimeFilter = document.getElementById('insightTimeFilter');
         if (!activityDistributionEl) return;
 
-        // Default categories with fixed colors
+        // Default categories with fixed colors representing all portals
         const categoryConfig = {
             'Enrollment Concern': 'bg-indigo-600',
             'Document Request': 'bg-emerald-600',
             'Document Pick-up': 'bg-teal-600',
-            'Financial Concern': 'bg-rose-600',
+            'Financial Concern': 'bg-pink-600',
             'Inquiry': 'bg-amber-600',
-            'Consultation': 'bg-blue-600',
+            'Meeting & Consultation': 'bg-blue-600',
+            'Deliveries & Couriers': 'bg-cyan-600',
+            'Maintenance & Support': 'bg-slate-700',
+            'Staff & Faculty Logs': 'bg-rose-600',
             'Others': 'bg-slate-500'
         };
 
@@ -852,25 +856,35 @@ class LogsManager {
             });
         }
 
-        // Smarter grouping: Partial matching + Keyword detection
+        // Smarter grouping: Strip portal prefixes, partial matching + keyword detection
         validEntries.forEach(entry => {
-            const rawAct = (entry.activity || '').toLowerCase();
+            const rawAct = (entry.activity || '').trim();
             
-            // 1. Check for "starts with" or exact match against predefined list
-            const matchedKey = predefinedActivities.find(a => rawAct.startsWith(a.toLowerCase()));
+            // 1. Strip bracketed role prefixes (e.g. "[Visitor] Meeting" -> "Meeting")
+            const cleanAct = rawAct.replace(/^\[[^\]]+\]\s*/, '').trim();
+            const lowerAct = cleanAct.toLowerCase();
+
+            // 2. Check for "starts with" or exact match against predefined list using clean activity
+            const matchedKey = predefinedActivities.find(a => lowerAct.startsWith(a.toLowerCase()));
 
             if (matchedKey) {
                 activityCounts[matchedKey] += 1;
             } else {
-                // 2. Keyword check for generic "Others"
-                if (rawAct.includes('consult')) {
-                    activityCounts['Consultation'] = (activityCounts['Consultation'] || 0) + 1;
-                } else if (rawAct.includes('enroll') || rawAct.includes('subject')) {
+                // 3. Keyword check for generic/portal specific categories
+                if (lowerAct.includes('consult') || lowerAct.includes('meet')) {
+                    activityCounts['Meeting & Consultation'] = (activityCounts['Meeting & Consultation'] || 0) + 1;
+                } else if (lowerAct.includes('deliver') || lowerAct.includes('courier') || lowerAct.includes('package')) {
+                    activityCounts['Deliveries & Couriers'] = (activityCounts['Deliveries & Couriers'] || 0) + 1;
+                } else if (lowerAct.includes('maint') || lowerAct.includes('repair') || lowerAct.includes('tech') || lowerAct.includes('wrench')) {
+                    activityCounts['Maintenance & Support'] = (activityCounts['Maintenance & Support'] || 0) + 1;
+                } else if (lowerAct.includes('employee') || lowerAct.includes('faculty') || lowerAct.includes('staff') || lowerAct.includes('check-in')) {
+                    activityCounts['Staff & Faculty Logs'] = (activityCounts['Staff & Faculty Logs'] || 0) + 1;
+                } else if (lowerAct.includes('enroll') || lowerAct.includes('subject')) {
                     activityCounts['Enrollment Concern'] = (activityCounts['Enrollment Concern'] || 0) + 1;
-                } else if (rawAct.includes('inquir') || rawAct.includes('ask')) {
+                } else if (lowerAct.includes('inquir') || lowerAct.includes('ask')) {
                     activityCounts['Inquiry'] = (activityCounts['Inquiry'] || 0) + 1;
-                } else if (rawAct.includes('document') || rawAct.includes('form') || rawAct.includes('request')) {
-                    if (rawAct.includes('pick-up') || rawAct.includes('pickup') || rawAct.includes('claim')) {
+                } else if (lowerAct.includes('document') || lowerAct.includes('form') || lowerAct.includes('request')) {
+                    if (lowerAct.includes('pick-up') || lowerAct.includes('pickup') || lowerAct.includes('claim')) {
                         activityCounts['Document Pick-up'] = (activityCounts['Document Pick-up'] || 0) + 1;
                     } else {
                         activityCounts['Document Request'] = (activityCounts['Document Request'] || 0) + 1;

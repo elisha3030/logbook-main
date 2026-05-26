@@ -48,6 +48,15 @@ class HistoryManager {
 
     init() {
         if (!document.getElementById('historyTableBody')) return;
+        
+        // Extract URL parameter for search pre-filling
+        const params = new URLSearchParams(window.location.search);
+        const searchQuery = params.get('search');
+        const historySearch = document.getElementById('historySearch');
+        if (searchQuery && historySearch) {
+            historySearch.value = searchQuery;
+        }
+
         this.setupEventListeners();
         this.loadHistory();
     }
@@ -92,7 +101,7 @@ class HistoryManager {
             const tableBody = document.getElementById('historyTableBody');
             tableBody.innerHTML = `
                 <tr>
-                    <td colspan="5" class="px-8 py-32 text-center">
+                    <td colspan="8" class="px-8 py-32 text-center">
                         <div class="flex flex-col items-center justify-center">
                             <div class="animate-spin rounded-full h-12 w-12 border-4 border-blue-600 border-t-transparent mb-6"></div>
                             <p class="font-black text-slate-400 uppercase tracking-widest text-xs">Fetching Firebase Data...</p>
@@ -184,7 +193,7 @@ class HistoryManager {
             console.error('❌ Firebase History Load Error:', error);
             document.getElementById('historyTableBody').innerHTML = `
                 <tr>
-                    <td colspan="5" class="px-8 py-32 text-center text-red-500 font-bold">
+                    <td colspan="8" class="px-8 py-32 text-center text-red-500 font-bold">
                         <i data-lucide="alert-circle" class="w-12 h-12 mx-auto mb-4"></i>
                         <p>Failed to load data from Firebase.</p>
                         <p class="text-xs font-mono mt-2 text-red-400">${error.message}</p>
@@ -201,10 +210,23 @@ class HistoryManager {
         const endIndex = startIndex + this.entriesPerPage;
         const pageEntries = this.filteredEntries.slice(startIndex, endIndex);
 
+        // Update results count label
+        const countLabel = document.getElementById('resultsCountLabel');
+        if (countLabel) {
+            const total = this.filteredEntries.length;
+            if (total === 0) {
+                countLabel.textContent = 'No records found';
+            } else {
+                const from = startIndex + 1;
+                const to = Math.min(endIndex, total);
+                countLabel.textContent = `Showing ${from}–${to} of ${total} record${total !== 1 ? 's' : ''}`;
+            }
+        }
+
         if (pageEntries.length === 0) {
             tableBody.innerHTML = `
                 <tr>
-                    <td colspan="5" class="px-8 py-32 text-center">
+                    <td colspan="8" class="px-8 py-32 text-center">
                         <div class="bg-slate-50 dark:bg-slate-700 rounded-3xl p-12 inline-block">
                             <i data-lucide="database-zap" class="w-12 h-12 text-slate-300 mx-auto mb-4"></i>
                             <h3 class="text-slate-900 dark:text-white font-black text-lg">No records found</h3>
@@ -221,80 +243,73 @@ class HistoryManager {
             const duration = this.calculateDuration(entry.timeIn, entry.timeOut);
             return `
             <tr class="hover:bg-slate-50/50 dark:hover:bg-slate-700/50 transition-colors group">
-                <td class="px-8 py-6">
-                    <p class="font-bold text-slate-700 dark:text-slate-300 leading-none mb-1">${this.formatDate(entry.timeIn)}</p>
+                <td class="px-5 py-4">
+                    <p class="font-bold text-slate-700 dark:text-slate-300 leading-none mb-1 text-sm">${this.formatDate(entry.timeIn)}</p>
                     <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest">${this.formatTime(entry.timeIn)}</p>
                 </td>
-                <td class="px-8 py-6">
-                    <div class="flex items-center gap-4">
-                        <div class="w-10 h-10 rounded-2xl bg-slate-100 flex items-center justify-center text-slate-500 font-black text-xs border border-white shadow-sm">
-                            ${(entry.studentName || '?').charAt(0)}
+                <td class="px-5 py-4">
+                    <div class="flex items-center gap-3">
+                        <div class="w-9 h-9 rounded-xl bg-slate-100 dark:bg-slate-700 flex items-center justify-center text-slate-500 font-black text-xs border border-white dark:border-slate-600 shadow-sm flex-shrink-0">
+                            ${(entry.studentName || '?').charAt(0).toUpperCase()}
                         </div>
                         <div>
-                            <p class="font-black text-slate-900 dark:text-white leading-none mb-1.5">${entry.studentName || 'Unknown Student'}</p>
+                            <p class="font-black text-slate-900 dark:text-white leading-none mb-1 text-sm">${entry.studentName || 'Unknown Student'}</p>
                             <p class="text-[10px] font-mono text-slate-400 uppercase tracking-widest">${entry.studentNumber || 'No NFC Chip'}</p>
                         </div>
                     </div>
                 </td>
-                <td class="px-6 py-6 font-bold text-slate-600 text-xs text-center">
+                <td class="px-3 py-4 font-bold text-slate-600 text-xs text-center">
                     ${(entry.studentNumber === 'PARENT_VISIT' || entry.studentNumber === 'EMPLOYEE_LOG' || entry.studentNumber === 'VISITOR_VISIT' || (entry.activity && (entry.activity.startsWith('[Parent]') || entry.activity.startsWith('[Employee]') || entry.activity.startsWith('[Visitor]')))) 
-                        ? '---' 
-                        : (entry.yearLevel || entry['Year Level'] || '---')}
+                        ? '<span class="text-slate-300">—</span>' 
+                        : (entry.yearLevel || entry['Year Level'] || '<span class="text-slate-300">—</span>')}
                 </td>
-                <td class="px-6 py-6">
+                <td class="px-3 py-4">
                     <div class="space-y-1">
-                        <span class="px-3 py-1 text-[10px] font-black rounded-lg bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-white border border-blue-100 dark:border-blue-900/20 uppercase tracking-widest leading-none">
+                        <span class="inline-block px-2.5 py-1 text-[10px] font-black rounded-lg bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-100 dark:border-blue-900/20 uppercase tracking-widest leading-none whitespace-nowrap">
                             ${entry.activity || 'N/A'}
                         </span>
                         ${entry.proofImage ? `
                             <button onclick="historyManager.viewProof('${entry.proofImage}')" 
-                                class="flex items-center gap-1.5 text-[10px] font-bold text-violet-600 dark:text-violet-400 hover:bg-violet-50 dark:hover:bg-violet-900/30 px-3 py-1.5 rounded-full transition-all border border-violet-100 dark:border-violet-900/50 mt-1.5">
+                                class="flex items-center gap-1 text-[10px] font-bold text-violet-600 dark:text-violet-400 hover:bg-violet-50 dark:hover:bg-violet-900/30 px-2.5 py-1 rounded-full transition-all border border-violet-100 dark:border-violet-900/50 mt-1 whitespace-nowrap">
                                 <i data-lucide="file-check" class="w-3 h-3"></i> View Proof
                             </button>
                         ` : ''}
                     </div>
                 </td>
-                <td class="px-6 py-6 text-center">
+                <td class="px-3 py-4 text-center">
                     ${duration
-                    ? `<span class="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-slate-50 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-[10px] font-black border border-slate-100 dark:border-slate-600">
-                          <i data-lucide="hourglass" class="w-3 h-3"></i>
-                          ${duration}
+                    ? `<span class="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-slate-50 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-[10px] font-black border border-slate-100 dark:border-slate-600 whitespace-nowrap">
+                          <i data-lucide="hourglass" class="w-3 h-3"></i>${duration}
                        </span>`
-                    : '<span class="text-slate-300 dark:text-slate-600">---</span>'
+                    : '<span class="text-slate-300 dark:text-slate-600 text-xs">—</span>'
                 }
                 </td>
-                <td class="px-6 py-6 text-center">
+                <td class="px-3 py-4 text-center">
                     ${(() => {
                         const act = String(entry.activity || '').toLowerCase();
                         const isDocRequest = act.startsWith('document request');
                         if (isDocRequest) {
                             const rs = String(entry.status || 'pending').toLowerCase();
                             if (rs === 'pending') {
-                                return `<span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-100 text-amber-700 text-[9px] font-black uppercase tracking-widest border border-amber-200">
-                                            <div class="w-1.5 h-1.5 rounded-full bg-amber-500"></div> Pending
-                                        </span>`;
+                                return `<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-amber-100 text-amber-700 text-[9px] font-black uppercase tracking-widest border border-amber-200 whitespace-nowrap"><div class="w-1.5 h-1.5 rounded-full bg-amber-500"></div>Pending</span>`;
                             }
                             if (rs === 'in-service') {
-                                return `<span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-100 text-blue-700 text-[9px] font-black uppercase tracking-widest border border-blue-200">
-                                            <div class="w-1.5 h-1.5 rounded-full bg-blue-500"></div> Processing
-                                        </span>`;
+                                return `<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-blue-100 text-blue-700 text-[9px] font-black uppercase tracking-widest border border-blue-200 whitespace-nowrap"><div class="w-1.5 h-1.5 rounded-full bg-blue-500"></div>Processing</span>`;
                             }
-                            return `<span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-100 text-emerald-700 text-[9px] font-black uppercase tracking-widest border border-emerald-200">
-                                        <div class="w-1.5 h-1.5 rounded-full bg-emerald-500"></div> Completed
-                                    </span>`;
+                            return `<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700 text-[9px] font-black uppercase tracking-widest border border-emerald-200 whitespace-nowrap"><div class="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>Completed</span>`;
                         }
-
                         return entry.timeOut
-                            ? `<span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 text-slate-400 text-[9px] font-black uppercase tracking-widest border border-slate-200">
-                                     <div class="w-1.5 h-1.5 rounded-full bg-slate-300"></div> Completed
-                                   </span>`
-                            : `<span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-100 text-emerald-600 text-[9px] font-black uppercase tracking-widest border border-emerald-200">
-                                     <div class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></div> Active Visit
-                                   </span>`;
+                            ? `<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-100 text-slate-400 text-[9px] font-black uppercase tracking-widest border border-slate-200 whitespace-nowrap"><div class="w-1.5 h-1.5 rounded-full bg-slate-300"></div>Completed</span>`
+                            : `<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-600 text-[9px] font-black uppercase tracking-widest border border-emerald-200 whitespace-nowrap"><div class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></div>Active</span>`;
                     })()}
                 </td>
-                <td class="px-8 py-6 text-right">
-                    <p class="text-xs font-bold text-slate-600">${(entry.staffEmail || 'system').split('@')[0]}</p>
+                <td class="px-3 py-4 text-center">
+                    <button class="w-8 h-8 inline-flex items-center justify-center rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-400 hover:text-blue-600 hover:border-blue-300 hover:shadow-md transition-all" onclick="historyManager.viewEntry('${entry.id}')">
+                        <i data-lucide="eye" class="w-4 h-4"></i>
+                    </button>
+                </td>
+                <td class="px-5 py-4 text-center">
+                    <p class="text-xs font-bold text-slate-600 dark:text-slate-400 whitespace-nowrap text-center">${(entry.staffEmail || 'system').split('@')[0]}</p>
                 </td>
             </tr>
         `;
@@ -415,6 +430,98 @@ class HistoryManager {
         }
         const d = new Date(timeValue);
         return isNaN(d) ? null : d.getTime();
+    }
+
+    viewEntry(entryId) {
+        const entry = this.allEntries.find(e => e.id === entryId);
+        if (!entry) {
+            console.error('❌ Entry not found:', entryId);
+            return;
+        }
+
+        const entryDetails = document.getElementById('entryDetails');
+        if (!entryDetails) {
+            console.error('❌ Entry details element not found');
+            return;
+        }
+
+        const duration = this.calculateDuration(entry.timeIn, entry.timeOut);
+        
+        const statusBadge = entry.timeOut
+            ? `<span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 text-slate-500 text-[10px] font-black uppercase tracking-wider border border-slate-200">
+                 <div class="w-1.5 h-1.5 rounded-full bg-slate-400"></div> Checked Out
+               </span>`
+            : `<span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-100 text-emerald-600 text-[10px] font-black uppercase tracking-wider border border-emerald-200 animate-pulse">
+                     <div class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></div> Active Visit
+                   </span>`;
+
+        entryDetails.innerHTML = `
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div class="space-y-4">
+                    <div class="flex items-center justify-between">
+                        <h6 class="text-xs font-black uppercase tracking-widest text-slate-400">Student Information</h6>
+                        ${statusBadge}
+                    </div>
+                    <div class="bg-slate-50 dark:bg-slate-700 p-4 rounded-xl border border-slate-100 dark:border-slate-600">
+                        <p class="text-xs text-slate-500 mb-1">Full Name</p>
+                        <p class="font-bold text-slate-900 dark:text-white">${entry.studentName || 'Unknown Student'}</p>
+                    </div>
+                    ${!(entry.studentNumber === 'PARENT_VISIT' || entry.studentNumber === 'EMPLOYEE_LOG' || entry.studentNumber === 'VISITOR_VISIT' || (entry.activity && (entry.activity.startsWith('[Parent]') || entry.activity.startsWith('[Employee]') || entry.activity.startsWith('[Visitor]')))) 
+                        ? `<div class="bg-slate-50 dark:bg-slate-700 p-4 rounded-xl border border-slate-100 dark:border-slate-600">
+                                <p class="text-xs text-slate-500 mb-1">Student ID Number</p>
+                                <p class="font-bold text-slate-900 dark:text-white">${entry.studentId || 'N/A'}</p>
+                           </div>`
+                        : ''
+                    }
+                    ${!(entry.studentNumber === 'PARENT_VISIT' || entry.studentNumber === 'EMPLOYEE_LOG' || entry.studentNumber === 'VISITOR_VISIT' || (entry.activity && (entry.activity.startsWith('[Parent]') || entry.activity.startsWith('[Employee]') || entry.activity.startsWith('[Visitor]')))) 
+                        ? `<div class="bg-slate-50 dark:bg-slate-700 p-4 rounded-xl border border-slate-100 dark:border-slate-600">
+                                <p class="text-xs text-slate-500 mb-1">NFC Chip Number</p>
+                                <p class="font-mono font-bold text-slate-900 dark:text-white">${entry.studentNumber || '---'}</p>
+                           </div>`
+                        : ''
+                    }
+                </div>
+                <div class="space-y-4">
+                    <h6 class="text-xs font-black uppercase tracking-widest text-slate-400">Visit Details</h6>
+                    <div class="bg-blue-50 dark:bg-blue-900/30 p-4 rounded-xl border border-blue-100 dark:border-blue-900/20">
+                        <p class="text-xs text-blue-600 dark:text-blue-400 mb-1">Activity</p>
+                        <div class="flex items-center justify-between">
+                            <p class="font-extrabold text-blue-800 dark:text-white">${entry.activity || '---'}</p>
+                            ${duration ? `<span class="px-2 py-0.5 rounded-lg bg-blue-100 dark:bg-blue-800 text-blue-800 dark:text-blue-100 text-[10px] font-black uppercase tracking-widest border border-blue-200 dark:border-blue-700">Duration: ${duration}</span>` : ''}
+                        </div>
+                    </div>
+                    <div class="bg-slate-50 dark:bg-slate-700 p-4 rounded-xl border border-slate-100 dark:border-slate-600">
+                        <p class="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">Assigned Staff</p>
+                        <p class="font-bold text-slate-900 dark:text-white">${entry.staff || '---'}</p>
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div class="bg-slate-50 dark:bg-slate-700 p-3 rounded-xl border border-slate-100 dark:border-slate-600">
+                            <p class="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">Time In</p>
+                            <p class="text-xs font-bold text-emerald-600">${this.formatTime(entry.timeIn)}</p>
+                        </div>
+                        <div class="bg-slate-50 dark:bg-slate-700 p-3 rounded-xl border border-slate-100 dark:border-slate-600">
+                            <p class="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">Time Out</p>
+                            <p class="text-xs font-bold text-slate-900 dark:text-white">${entry.timeOut ? this.formatTime(entry.timeOut) : 'Still Active'}</p>
+                        </div>
+                    </div>
+
+                    ${entry.proofImage ? `
+                        <button class="w-full h-12 flex items-center justify-center gap-2 rounded-xl bg-violet-600 text-white shadow-lg shadow-violet-900/20 hover:bg-violet-700 transition-all font-black uppercase tracking-widest text-xs" onclick="historyManager.viewProof('${entry.proofImage}')">
+                            <i data-lucide="file-check" class="w-4 h-4"></i>
+                            View Signed Proof
+                        </button>
+                    ` : ''}
+                </div>
+            </div>
+        `;
+
+        if (window.lucide) window.lucide.createIcons();
+
+        const modal = document.getElementById('entryModal');
+        if (modal) {
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        }
     }
 
     viewProof(url) {

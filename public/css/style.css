@@ -927,12 +927,25 @@ html:not(.dark) .shadow-2xl {
     width: 100%;
 }
 
-.responsive-table-container th,
+/* Headers can word-wrap so they don't force columns super wide */
+.responsive-table-container th {
+    white-space: normal;
+    min-width: 60px;
+}
+
+/* Data cells stay on one line */
 .responsive-table-container td {
     white-space: nowrap;
 }
 
 .responsive-table-container td p {
     white-space: normal;
-    max-width: 300px;
+    max-width: 260px;
+}
+
+/* Compact activity badge can truncate if needed */
+.responsive-table-container td .activity-badge {
+    max-width: 160px;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
