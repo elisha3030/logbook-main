@@ -177,6 +177,24 @@ class LogsManager {
         if (generateReportBtn) generateReportBtn.addEventListener('click', () => this.generatePDFReport());
         if (deleteEntryBtn)   deleteEntryBtn.addEventListener('click', () => this.deleteCurrentEntry());
 
+        // ── Pending Requests Bulk Actions (dashboard panel) ────────────
+        const selectAllPending = document.getElementById('selectAllPending');
+        const bulkApproveBtn = document.getElementById('bulkApproveBtn');
+        const bulkCompleteBtn = document.getElementById('bulkCompleteBtn');
+        const bulkClaimBtn = document.getElementById('bulkClaimBtn');
+        const bulkMarkOutBtn = document.getElementById('bulkMarkOutBtn');
+
+        if (selectAllPending) {
+            selectAllPending.addEventListener('change', () => {
+                const checks = document.querySelectorAll('.pending-row-check');
+                checks.forEach(cb => { cb.checked = selectAllPending.checked; });
+            });
+        }
+        if (bulkApproveBtn)  bulkApproveBtn.addEventListener('click', () => this.bulkStartService());
+        if (bulkCompleteBtn) bulkCompleteBtn.addEventListener('click', () => this.bulkCompleteRequests());
+        if (bulkClaimBtn)    bulkClaimBtn.addEventListener('click', () => this.bulkClaimRequests());
+        if (bulkMarkOutBtn)  bulkMarkOutBtn.addEventListener('click', () => this.handleBulkClockOut());
+
         const insightTimeFilter = document.getElementById('insightTimeFilter');
         if (insightTimeFilter) insightTimeFilter.addEventListener('change', () => this.updateInsights());
 
@@ -1109,7 +1127,7 @@ class LogsManager {
             'Clock-out All Users',
             '⚠️ Are you sure you want to clock out ALL currently active sessions? This will end all visits that haven\'t timed out yet.',
             async () => {
-                const btn = document.getElementById('bulkClockOutBtn');
+                const btn = document.getElementById('bulkClockOutBtn') || document.getElementById('bulkMarkOutBtn');
                 const originalContent = btn ? btn.innerHTML : '';
                 if (btn) {
                     btn.disabled = true;

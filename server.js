@@ -230,6 +230,15 @@ async function initializeLocalDb() {
     try { await localDb.exec('ALTER TABLE logs ADD COLUMN signedAt TEXT'); } catch (e) { }
     try { await localDb.exec('ALTER TABLE logs ADD COLUMN remoteApproval INTEGER DEFAULT 0'); } catch (e) { }
 
+    // Normalize: document pick-ups should never be pending
+    try {
+        await localDb.run(
+            "UPDATE logs SET status = 'completed', docStatus = COALESCE(docStatus, 'Out'), synced = 0 WHERE LOWER(COALESCE(status,'')) = 'pending' AND (LOWER(COALESCE(activity,'')) LIKE 'document pick-up%' OR LOWER(COALESCE(activity,'')) LIKE 'document pickup%' OR LOWER(COALESCE(activity,'')) LIKE 'document claim%')"
+        );
+    } catch (e) {
+        // best-effort; ignore
+    }
+
     // staffAccountEmail — links the log to the faculty's account email for alert routing
     try { await localDb.exec('ALTER TABLE logs ADD COLUMN staffAccountEmail TEXT'); } catch (e) { }
 
@@ -1227,7 +1236,11 @@ app.post('/api/register-log', uploadDocs.single('softCopy'), async (req, res) =>
         );
 
         // 2. Write log to SQLite
-        const docStatus = 'In'; // All new entries start as 'In' (Incoming)
+        const activity = String(logData.activity || '');
+        const isInstantComplete = isDocumentPickupActivity(activity) || isDocumentSubmissionActivity(activity);
+        const docStatus = logData.docStatus || (isDocumentPickupActivity(activity) ? 'Out' : 'In');
+        const status = isInstantComplete ? 'completed' : (logData.status || 'pending');
+        const timeOut = logData.timeOut || (isInstantComplete ? new Date().toISOString() : null);
 
         await localDb.run(
             `INSERT INTO logs 
@@ -1244,10 +1257,10 @@ app.post('/api/register-log', uploadDocs.single('softCopy'), async (req, res) =>
                 logData.course,
                 logData.date,
                 timeIn,
-                logData.timeOut,
+                timeOut,
                 logData.staffEmail,
                 officeId,
-                logData.status || 'pending',
+                status,
                 docStatus,
                 logData.email || null,
                 softCopyPath
@@ -1324,11 +1337,11 @@ app.post('/api/logs', uploadDocs.single('softCopy'), async (req, res) => {
         const logId = `local_${Date.now()}`;
         const timeIn = new Date().toISOString();
         const softCopyPath = req.file ? `/uploads/documents/${req.file.filename}` : null;
-        // All kiosk entries are document requests — start as Incoming
-        const docStatus = logData.docStatus || 'In';
-
-        const status = logData.status || 'pending';
-        const timeOut = logData.timeOut || null;
+        const activity = String(logData.activity || '');
+        const isInstantComplete = isDocumentPickupActivity(activity) || isDocumentSubmissionActivity(activity);
+        const docStatus = logData.docStatus || (isDocumentPickupActivity(activity) ? 'Out' : 'In');
+        const status = isInstantComplete ? 'completed' : (logData.status || 'pending');
+        const timeOut = logData.timeOut || (isInstantComplete ? new Date().toISOString() : null);
 
         await localDb.run(
             `INSERT INTO logs 
