@@ -613,7 +613,7 @@ async function renderQueue() {
     if (all.length === 0) {
         tbody.innerHTML = `
             <tr>
-                <td colspan="5" class="px-8 py-20 text-center">
+                <td colspan="7" class="px-8 py-20 text-center">
                     <div class="flex flex-col items-center justify-center">
                         <div class="w-16 h-16 bg-slate-100 dark:bg-slate-700 rounded-2xl flex items-center justify-center mb-4">
                             <i data-lucide="inbox" class="w-8 h-8 text-slate-400"></i>
@@ -759,22 +759,20 @@ async function renderQueue() {
         return `
             <tr onclick="window.viewTransactionDetails('${escape(log.id)}')" 
                 class="hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-all cursor-pointer group ${isCompleted ? 'opacity-60' : ''}">
-                <td class="px-8 py-4">
-                    <div class="flex items-center gap-4">
-                        <div onclick="event.stopPropagation()">
-                            <input type="checkbox" 
-                                   ${isChecked ? 'checked' : ''} 
-                                   ${!isSelectable ? 'disabled class="opacity-0"' : 'onchange="window.toggleLogSelection(\'' + escape(log.id) + '\')"'} 
-                                   class="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer">
+                <td class="px-8 py-4 w-12" onclick="event.stopPropagation()">
+                    <input type="checkbox" 
+                           ${isChecked ? 'checked' : ''} 
+                           ${!isSelectable ? 'disabled class="opacity-0"' : 'onchange="window.toggleLogSelection(\'' + escape(log.id) + '\')"'} 
+                           class="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer">
+                </td>
+                <td class="px-4 py-4">
+                    <div class="flex items-center gap-3">
+                        <div class="w-9 h-9 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 flex items-center justify-center text-xs font-black flex-shrink-0 group-hover:scale-110 transition-all">
+                            ${escape((log.studentName || 'S')[0]).toUpperCase()}
                         </div>
-                        <div class="flex items-center gap-3">
-                            <div class="w-9 h-9 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 flex items-center justify-center text-xs font-black flex-shrink-0 group-hover:scale-110 transition-all">
-                                ${escape((log.studentName || 'S')[0]).toUpperCase()}
-                            </div>
-                            <div>
-                                <p class="font-bold text-slate-800 dark:text-white text-sm leading-none group-hover:text-blue-600 transition-colors">${escape(log.studentName || '—')}</p>
-                                <p class="text-[10px] text-slate-400 font-mono mt-0.5">${escape(log.studentId || log.studentNumber || '')}</p>
-                            </div>
+                        <div>
+                            <p class="font-bold text-slate-800 dark:text-white text-sm leading-none group-hover:text-blue-600 transition-colors">${escape(log.studentName || '—')}</p>
+                            <p class="text-[10px] text-slate-400 font-mono mt-0.5">${escape(log.studentId || log.studentNumber || '')}</p>
                         </div>
                     </div>
                 </td>
