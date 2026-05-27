@@ -639,7 +639,12 @@ class StudentKioskManager {
             }
 
             this.selectedSoftCopyFile = null;
-            this.showFacultySelection();
+
+            if (this.selectedActivity === 'Document Submission') {
+                this.logVisit(this.selectedFaculty);
+            } else {
+                this.showFacultySelection();
+            }
         });
 
         document.getElementById('cancelDocBtn')?.addEventListener('click', () => this.showActivitySelection());
@@ -772,11 +777,7 @@ class StudentKioskManager {
         // ── Success screen ────
         document.getElementById('anotherTransactionBtn')?.addEventListener('click', () => {
             clearInterval(this._countdownTimer);
-            this.selectedDocument = null;
-            this.selectedFaculty = null;
-            this.selectedPickupDoc = null;
-            this.selectedPickupRequestId = null;
-            this.handleScan(this.currentStudent.id || this.currentStudent.studentId);
+            this.resetUI();
         });
 
         document.getElementById('finishTransactionBtn')?.addEventListener('click', () => {
@@ -859,6 +860,7 @@ class StudentKioskManager {
         clearInterval(this._countdownTimer);
         document.getElementById('idleOverlay')?.classList.remove('active');
 
+        this.currentStudent = null; // Ensure student session is cleared
         this.selectedDocument = null;
         this.selectedFaculty  = null;
         this.selectedPickupDoc = null;

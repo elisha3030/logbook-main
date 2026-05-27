@@ -1221,21 +1221,6 @@ app.post('/api/register-log', uploadDocs.single('softCopy'), async (req, res) =>
         const logId = `local_${Date.now()}`;
         const timeIn = new Date().toISOString();
         const softCopyPath = req.file ? `/uploads/documents/${req.file.filename}` : null;
-
-        // 1. Write student to SQLite
-        await localDb.run(
-            'INSERT OR REPLACE INTO students (barcode, name, studentId, course, yearLevel, email, synced, isApproved) VALUES (?, ?, ?, ?, ?, ?, 0, ?)',
-            [
-                studentData.barcode || studentData.id, 
-                studentData.name, 
-                studentData.studentId, 
-                studentData.course || studentData.Course, 
-                studentData.yearLevel || studentData['Year Level'] || studentData.yearLevel, 
-                studentData.email
-            ]
-        );
-
-        // 2. Write log to SQLite
         const activity = String(logData.activity || '');
         const isInstantComplete = isDocumentPickupActivity(activity) || isDocumentSubmissionActivity(activity);
         const docStatus = logData.docStatus || (isDocumentPickupActivity(activity) ? 'Out' : 'In');
@@ -2206,8 +2191,6 @@ async function syncToCloud() {
                 // Convert ISO strings back to Firebase Timestamps for consistency
                 if (firebaseLogData.timeIn) firebaseLogData.timeIn = admin.firestore.Timestamp.fromDate(new Date(firebaseLogData.timeIn));
                 if (firebaseLogData.timeOut) firebaseLogData.timeOut = admin.firestore.Timestamp.fromDate(new Date(firebaseLogData.timeOut));
-
-                if (firebaseLogData.serviceStartTime) firebaseLogData.serviceStartTime = admin.firestore.Timestamp.fromDate(new Date(firebaseLogData.serviceStartTime));
 
                 if (log.id.startsWith('local_')) {
                     // New log
