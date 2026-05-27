@@ -1490,9 +1490,11 @@ class StudentKioskManager {
         if (descInput) descInput.value = '';
 
         const docName = this.selectedDocument?.name || 'transaction';
-        const isCustom = docName.toLowerCase().includes('others') || docName.toLowerCase().includes('document request');
+        const docLower = docName.toLowerCase();
+        const isOthersCustom = docLower.includes('others / custom request') || docLower === 'others' || docLower.includes('others');
+        const needsDescription = docLower.includes('document request') && !isOthersCustom;
 
-        if (isCustom) {
+        if (needsDescription) {
             descArea?.classList.remove('hidden');
             setTimeout(() => descInput?.focus(), 100);
         } else {
@@ -1502,9 +1504,9 @@ class StudentKioskManager {
         const title = document.getElementById('uploadSectionTitle');
         const desc = document.getElementById('uploadSectionDesc');
 
-        if (title) title.textContent = isCustom ? 'Describe & Attach' : 'Attach Soft Copy';
+        if (title) title.textContent = needsDescription ? 'Describe & Attach' : 'Attach Soft Copy';
         if (desc) {
-            if (isCustom) {
+            if (needsDescription) {
                 desc.innerHTML = `Please describe what you need and attach a soft copy if you have one.`;
             } else {
                 desc.innerHTML = `Would you like to attach a digital copy (PDF/Image) for your <span class="font-black text-blue-500">${docName}</span>?`;
@@ -1930,6 +1932,21 @@ class StudentKioskManager {
             // Only show completed document requests that are still physically IN (ready for pick-up)
             const pickableLogs = logs.filter(l => {
                 const act = String(l.activity || '').trim().toLowerCase();
+
+                // If the student already sent a soft copy attachment, don't require pick-up.
+                // This screen is for physical documents ready to be claimed in-office.
+                const hasSoftCopy = !!String(l.softCopyPath || '').trim();
+                if (hasSoftCopy) return false;
+
+                // Never treat the kiosk "Others / Custom Request" category as a pick-up item
+                // (it contains the word "request" and can be misclassified by keyword matching).
+                if (act === 'others' || act === 'other' || act.includes('others / custom request')) return false;
+
+                // Exclude non-pickup workflows that can be keyword-matched as "documents"
+                // - Document Submission: student passes/submits a document (nothing to claim)
+                // - Document Pick-up: already a pick-up log, not a pickable request
+                if (act.includes('submission') || act.includes('submit') || act.includes('pass')) return false;
+                if (act.startsWith('document pick-up')) return false;
                 
                 // Broad check for document-like activities
                 const docKeywords = ['document', 'certificate', 'certification', 'transcript', 'tor', 'cor', 'cog', 'clearance', 'form', 'dismissal', 'diploma', 'id card', 'request', 'paper', 'application', 'permit', 'records', 'evaluation', 'eval', 'authentication', 'verification', 'grades', 'gwa', 'report'];

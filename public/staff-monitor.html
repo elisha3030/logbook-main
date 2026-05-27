@@ -57,6 +57,22 @@
             <a href="index.html" class="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-black text-[10px] uppercase tracking-widest shadow-md shadow-emerald-500/30 hover:-translate-y-0.5 transition-all">
                 <i data-lucide="monitor-stop" class="w-4 h-4"></i>Go back to portal
             </a>
+
+            <div class="bg-slate-800/50 rounded-2xl p-4 flex items-center justify-between mt-auto">
+                <div class="flex items-center gap-3 overflow-hidden">
+                    <div
+                        class="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
+                        S
+                    </div>
+                    <div class="overflow-hidden">
+                        <p class="text-xs font-bold text-white truncate user-email">Staff User</p>
+                        <p class="text-[10px] text-slate-200 font-bold">Admin Access</p>
+                    </div>
+                </div>
+                <button id="logoutBtn" class="text-slate-200 hover:text-red-400 hover:bg-slate-700/40 focus:outline-none transition-colors p-2 rounded-lg">
+                    <i data-lucide="log-out" class="w-5 h-5"></i>
+                </button>
+            </div>
         </div>
     </aside>
 
@@ -245,6 +261,7 @@
         </div>
     </div>
 
+    <script type="module" src="js/auth.js"></script>
     <script type="module">
         const OFFICE_ID = 'engineering-office';
         let allLogs = [];
@@ -423,7 +440,7 @@
             rateText.textContent = rate + '%';
 
             // Filter specific pending tasks for this staff
-            const tasks = allLogs.filter(l => l.staff === s.name && (l.status === 'pending' || l.status === 'in-service'));
+            const tasks = allLogs.filter(l => l.staff === s.name && (!l.status || l.status === 'pending' || l.status === 'in-service'));
             const taskList = document.getElementById('modalTaskList');
             
             if (tasks.length === 0) {
@@ -556,7 +573,7 @@
             const subtitle = document.getElementById('allPendingSubtitle');
 
             // Gather all pending / in-service logs across ALL staff
-            const pending = allLogs.filter(l => l.status === 'pending' || l.status === 'in-service');
+            const pending = allLogs.filter(l => !l.status || l.status === 'pending' || l.status === 'in-service');
 
             subtitle.textContent = `${pending.length} transaction${pending.length !== 1 ? 's' : ''} awaiting action`;
 

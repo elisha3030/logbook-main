@@ -13,6 +13,7 @@ export default class SettingsManager {
         this.kioskVisitorTransactions = [];
         this.kioskEmployeeTransactions = [];
         this.settings = {};
+        this._editingLocalAccountEmail = null;
     }
 
     // ----------------------------------------------------------------
@@ -73,6 +74,16 @@ export default class SettingsManager {
                     </div>
                     <div class="flex items-center gap-2 flex-shrink-0">
                         <span class="text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-lg ${badgeClass}">${this._escape(role)}</span>
+                        ${isFaculty ? `
+                            <button type="button"
+                                data-edit-email="${this._escape(a.email)}"
+                                data-edit-name="${this._escape(a.displayName || '')}"
+                                data-edit-role="${this._escape(role)}"
+                                class="inline-flex items-center justify-center w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-900 text-slate-600 hover:text-white transition-all border border-slate-200 dark:bg-slate-600/40 dark:hover:bg-slate-600 dark:text-slate-200 dark:border-slate-600"
+                                title="Edit faculty account">
+                                <i data-lucide="pencil" class="w-4 h-4"></i>
+                            </button>
+                        ` : ''}
                         ${isFaculty && !isSelf ? `
                             <button type="button" data-remove-email="${this._escape(a.email)}"
                                 class="inline-flex items-center justify-center w-9 h-9 rounded-xl bg-red-50 hover:bg-red-600 text-red-600 hover:text-white transition-all border border-red-100"
@@ -83,6 +94,17 @@ export default class SettingsManager {
                     </div>
                 `;
                 container.appendChild(row);
+            });
+
+            // Bind edit handlers (faculty only)
+            container.querySelectorAll('[data-edit-email]').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const email = btn.getAttribute('data-edit-email') || '';
+                    const displayName = btn.getAttribute('data-edit-name') || '';
+                    const role = btn.getAttribute('data-edit-role') || 'faculty';
+                    if (!email) return;
+                    this.openLocalAccountEditModal({ email, displayName, role });
+                });
             });
 
             // Bind remove handlers (faculty only)
@@ -99,6 +121,62 @@ export default class SettingsManager {
             lucide.createIcons();
         } catch {
             container.innerHTML = `<div class="text-[11px] text-slate-400 italic px-1">Accounts list unavailable.</div>`;
+        }
+    }
+
+    _startLocalAccountEdit(account) {
+        // Legacy inline editor (kept for backwards-compat)
+        const emailEl = document.getElementById('newLocalAccountEmail');
+        const nameEl = document.getElementById('newLocalAccountDisplayName');
+        const pwEl = document.getElementById('newLocalAccountPassword');
+        const roleEl = document.getElementById('newLocalAccountRole');
+
+        if (emailEl) {
+            emailEl.value = String(account?.email || '').trim().toLowerCase();
+            emailEl.disabled = true;
+            emailEl.classList.add('opacity-70');
+        }
+        if (nameEl) nameEl.value = String(account?.displayName || '').trim();
+        if (roleEl) roleEl.value = String(account?.role || 'faculty').toLowerCase().trim();
+        if (pwEl) {
+            pwEl.value = '';
+            pwEl.placeholder = 'New password (leave blank to keep)';
+        }
+
+        this._editingLocalAccountEmail = String(account?.email || '').trim().toLowerCase();
+
+        const btn = document.getElementById('createLocalAccountBtn');
+        if (btn) {
+            btn.innerHTML = `<i data-lucide="save" class="w-4 h-4"></i> Update Account`;
+            lucide.createIcons();
+        }
+    }
+
+    _resetLocalAccountEditor() {
+        // Legacy inline editor reset (kept for backwards-compat)
+        const emailEl = document.getElementById('newLocalAccountEmail');
+        const nameEl = document.getElementById('newLocalAccountDisplayName');
+        const pwEl = document.getElementById('newLocalAccountPassword');
+        const roleEl = document.getElementById('newLocalAccountRole');
+
+        this._editingLocalAccountEmail = null;
+
+        if (emailEl) {
+            emailEl.disabled = false;
+            emailEl.classList.remove('opacity-70');
+            emailEl.value = '';
+        }
+        if (nameEl) nameEl.value = '';
+        if (pwEl) {
+            pwEl.value = '';
+            pwEl.placeholder = 'Password (min 8 chars)';
+        }
+        if (roleEl) roleEl.value = 'faculty';
+
+        const btn = document.getElementById('createLocalAccountBtn');
+        if (btn) {
+            btn.innerHTML = `<i data-lucide="user-plus" class="w-4 h-4"></i> Create Account`;
+            lucide.createIcons();
         }
     }
 
@@ -125,6 +203,12 @@ export default class SettingsManager {
         const displayName = (nameEl?.value || '').trim();
         const password = (pwEl?.value || '');
         const role = (roleEl?.value || 'faculty').trim();
+
+        // Edit mode: update existing faculty account
+        if (this._editingLocalAccountEmail) {
+            await this.updateLocalAccount(this._editingLocalAccountEmail, { displayName, password, role });
+            return;
+        }
 
         if (!email || !email.includes('@')) { this.showToast('Enter a valid email address', 'error'); return; }
         if (String(role).toLowerCase() === 'faculty' && !displayName) { this.showToast('Faculty accounts require a display name (must match the staff name in logs).', 'error'); return; }
@@ -161,6 +245,169 @@ export default class SettingsManager {
                 btn.disabled = false;
                 btn.innerHTML = `<i data-lucide="user-plus" class="w-4 h-4"></i> Create Account`;
                 lucide.createIcons();
+            }
+        }
+    }
+
+    async updateLocalAccount(email, { displayName, password, role }) {
+        const targetEmail = String(email || '').trim().toLowerCase();
+        if (!targetEmail || !targetEmail.includes('@')) {
+            this.showToast('Missing account email to update', 'error');
+            return;
+        }
+
+        const normalizedRole = String(role || 'faculty').toLowerCase().trim();
+        const safeName = String(displayName || '').trim();
+        const safePw = String(password || '');
+
+        if (normalizedRole === 'faculty' && !safeName) {
+            this.showToast('Faculty accounts require a display name (must match the staff name in logs).', 'error');
+            return;
+        }
+        if (safePw && safePw.length < 8) {
+            this.showToast('Password must be at least 8 characters', 'error');
+            return;
+        }
+
+        const btn = document.getElementById('createLocalAccountBtn');
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = `<i data-lucide="loader" class="w-4 h-4 animate-spin"></i> Updating…`;
+            lucide.createIcons();
+        }
+
+        try {
+            const payload = { displayName: safeName, role: normalizedRole };
+            if (safePw) payload.password = safePw;
+
+            const res = await fetch(`/api/auth/admins/${encodeURIComponent(targetEmail)}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(data.error || 'Failed to update account');
+
+            this.showToast(`Updated ${targetEmail}`);
+            this._resetLocalAccountEditor();
+            await this.renderLocalAccounts();
+            await this.renderAuditLog();
+        } catch (e) {
+            this.showToast(e.message || 'Failed to update account', 'error');
+        } finally {
+            if (btn) {
+                btn.disabled = false;
+                // Button text is set by editor state
+                if (this._editingLocalAccountEmail) {
+                    btn.innerHTML = `<i data-lucide="save" class="w-4 h-4"></i> Update Account`;
+                } else {
+                    btn.innerHTML = `<i data-lucide="user-plus" class="w-4 h-4"></i> Create Account`;
+                }
+                lucide.createIcons();
+            }
+        }
+    }
+
+    // ----------------------------------------------------------------
+    // Modal-based edit flow (preferred)
+    // ----------------------------------------------------------------
+    openLocalAccountEditModal({ email, displayName, role }) {
+        const modal = document.getElementById('editLocalAccountModal');
+        const emailEl = document.getElementById('editLocalAccountEmail');
+        const nameEl = document.getElementById('editLocalAccountDisplayName');
+        const roleEl = document.getElementById('editLocalAccountRole');
+        const pwEl = document.getElementById('editLocalAccountPassword');
+
+        if (!modal || !emailEl || !nameEl || !roleEl || !pwEl) return;
+
+        const normalizedEmail = String(email || '').trim().toLowerCase();
+        emailEl.value = normalizedEmail;
+        nameEl.value = String(displayName || '').trim();
+        roleEl.value = String(role || 'faculty').toLowerCase().trim();
+        pwEl.value = '';
+
+        modal.dataset.originalEmail = normalizedEmail;
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+        if (window.lucide) lucide.createIcons();
+    }
+
+    closeLocalAccountEditModal() {
+        const modal = document.getElementById('editLocalAccountModal');
+        if (!modal) return;
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+        modal.dataset.originalEmail = '';
+
+        const pwEl = document.getElementById('editLocalAccountPassword');
+        if (pwEl) pwEl.value = '';
+    }
+
+    async saveLocalAccountEditFromModal() {
+        const modal = document.getElementById('editLocalAccountModal');
+        const emailEl = document.getElementById('editLocalAccountEmail');
+        const nameEl = document.getElementById('editLocalAccountDisplayName');
+        const roleEl = document.getElementById('editLocalAccountRole');
+        const pwEl = document.getElementById('editLocalAccountPassword');
+        const saveBtn = document.getElementById('editLocalAccountSaveBtn');
+
+        if (!modal || !emailEl || !nameEl || !roleEl || !pwEl) return;
+
+        const originalEmail = String(modal.dataset.originalEmail || '').trim().toLowerCase();
+        const newEmail = String(emailEl.value || '').trim().toLowerCase();
+        const displayName = String(nameEl.value || '').trim();
+        const role = String(roleEl.value || 'faculty').trim();
+        const password = String(pwEl.value || '');
+
+        if (!originalEmail || !originalEmail.includes('@')) {
+            this.showToast('Missing account email to update', 'error');
+            return;
+        }
+
+        if (!newEmail || !newEmail.includes('@')) {
+            this.showToast('Enter a valid email address', 'error');
+            return;
+        }
+
+        if (String(role).toLowerCase() === 'faculty' && !displayName) {
+            this.showToast('Faculty accounts require a display name (must match the staff name in logs).', 'error');
+            return;
+        }
+        if (password && password.length < 8) {
+            this.showToast('Password must be at least 8 characters', 'error');
+            return;
+        }
+
+        if (saveBtn) {
+            saveBtn.disabled = true;
+            saveBtn.innerHTML = `<i data-lucide="loader" class="w-4 h-4 animate-spin"></i> Saving…`;
+            if (window.lucide) lucide.createIcons();
+        }
+
+        try {
+            const payload = { displayName, role };
+            if (newEmail !== originalEmail) payload.newEmail = newEmail;
+            if (password) payload.password = password;
+
+            const res = await fetch(`/api/auth/admins/${encodeURIComponent(originalEmail)}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(data.error || 'Failed to update account');
+
+            this.showToast(`Updated ${data.email || newEmail}`);
+            this.closeLocalAccountEditModal();
+            await this.renderLocalAccounts();
+            await this.renderAuditLog();
+        } catch (e) {
+            this.showToast(e.message || 'Failed to update account', 'error');
+        } finally {
+            if (saveBtn) {
+                saveBtn.disabled = false;
+                saveBtn.innerHTML = `<i data-lucide="save" class="w-4 h-4"></i> Save`;
+                if (window.lucide) lucide.createIcons();
             }
         }
     }
@@ -878,7 +1125,10 @@ export default class SettingsManager {
         });
 
         document.getElementById('createLocalAccountBtn')?.addEventListener('click', () => this.createLocalAccount());
-        document.getElementById('refreshLocalAccountsBtn')?.addEventListener('click', () => this.renderLocalAccounts());
+        document.getElementById('refreshLocalAccountsBtn')?.addEventListener('click', () => {
+            this._resetLocalAccountEditor();
+            this.renderLocalAccounts();
+        });
         document.getElementById('newLocalAccountPassword')?.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') { e.preventDefault(); this.createLocalAccount(); }
         });
@@ -896,6 +1146,23 @@ export default class SettingsManager {
         // Live dark mode preview
         document.getElementById('s_darkMode')?.addEventListener('change', (e) => {
             this.applyTheme(e.target.checked ? 'dark' : 'light');
+        });
+
+        // Edit Local Account modal
+        document.getElementById('editLocalAccountCloseBtn')?.addEventListener('click', () => this.closeLocalAccountEditModal());
+        document.getElementById('editLocalAccountCancelBtn')?.addEventListener('click', () => this.closeLocalAccountEditModal());
+        document.getElementById('editLocalAccountSaveBtn')?.addEventListener('click', () => this.saveLocalAccountEditFromModal());
+
+        document.getElementById('editLocalAccountPassword')?.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                this.saveLocalAccountEditFromModal();
+            }
+        });
+
+        // Backdrop click to close
+        document.getElementById('editLocalAccountModal')?.addEventListener('click', (e) => {
+            if (e.target?.id === 'editLocalAccountModal') this.closeLocalAccountEditModal();
         });
     }
 

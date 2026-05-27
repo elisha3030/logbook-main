@@ -2049,7 +2049,13 @@ app.get('/api/staff-stats', requireAdmin, async (req, res) => {
                     [officeId, name, today]
                 ),
                 localDb.get(
-                    `SELECT COUNT(*) as count FROM logs WHERE officeId = ? AND LOWER(TRIM(staff)) = LOWER(TRIM(?)) AND (status IS NULL OR LOWER(status) = 'pending')${dateClause}`,
+                                        `SELECT COUNT(*) as count FROM logs
+                                         WHERE officeId = ?
+                                             AND LOWER(TRIM(staff)) = LOWER(TRIM(?))
+                                             AND (
+                                                        (status IS NULL AND timeOut IS NULL)
+                                                        OR LOWER(status) IN ('pending', 'in-service')
+                                                     )${dateClause}`,
                     base
                 ),
                 localDb.get(
@@ -2501,10 +2507,40 @@ app.post('/api/auth/admins', requireAdmin, async (req, res) => {
 app.put('/api/auth/admins/:email', requireAdmin, async (req, res) => {
     try {
         const targetEmail = decodeURIComponent(req.params.email).toLowerCase().trim();
-        const { password, displayName, role } = req.body;
+        const { password, displayName, role, newEmail } = req.body;
 
         const existing = await localDb.get('SELECT id FROM admin_users WHERE email = ?', targetEmail);
         if (!existing) return res.status(404).json({ error: 'Admin account not found' });
+
+        // Optional: rename the account email (email is the unique identifier)
+        let effectiveEmail = targetEmail;
+        if (newEmail !== undefined) {
+            const normalizedNew = String(newEmail || '').toLowerCase().trim();
+            if (!normalizedNew || !normalizedNew.includes('@')) {
+                return res.status(400).json({ error: 'Enter a valid email address' });
+            }
+            if (normalizedNew !== targetEmail) {
+                const taken = await localDb.get('SELECT id FROM admin_users WHERE email = ?', normalizedNew);
+                if (taken) return res.status(409).json({ error: 'An admin account with that email already exists' });
+
+                await localDb.run(
+                    'UPDATE admin_users SET email = ?, updatedAt = CURRENT_TIMESTAMP WHERE email = ?',
+                    [normalizedNew, targetEmail]
+                );
+
+                // Keep authorized_staff in sync if present
+                try {
+                    await localDb.run('UPDATE authorized_staff SET email = ? WHERE email = ?', [normalizedNew, targetEmail]);
+                } catch (_) { /* table may not exist in older DBs */ }
+
+                // If the user renamed their own account, keep the session consistent
+                if (req.session?.user?.email && String(req.session.user.email).toLowerCase().trim() === targetEmail) {
+                    req.session.user.email = normalizedNew;
+                }
+
+                effectiveEmail = normalizedNew;
+            }
+        }
 
         if (password) {
             if (password.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' });
@@ -2512,14 +2548,14 @@ app.put('/api/auth/admins/:email', requireAdmin, async (req, res) => {
             const hash = hashPassword(password, salt);
             await localDb.run(
                 'UPDATE admin_users SET hash = ?, salt = ?, updatedAt = CURRENT_TIMESTAMP WHERE email = ?',
-                [hash, salt, targetEmail]
+                [hash, salt, effectiveEmail]
             );
         }
 
         if (displayName) {
             await localDb.run(
                 'UPDATE admin_users SET displayName = ?, updatedAt = CURRENT_TIMESTAMP WHERE email = ?',
-                [displayName, targetEmail]
+                [displayName, effectiveEmail]
             );
         }
 
@@ -2529,7 +2565,7 @@ app.put('/api/auth/admins/:email', requireAdmin, async (req, res) => {
                 // Check display name: use the new one from request, or fall back to existing DB value
                 const effectiveName = String(displayName || '').trim();
                 if (!effectiveName) {
-                    const dbRecord = await localDb.get('SELECT displayName FROM admin_users WHERE email = ?', targetEmail);
+                    const dbRecord = await localDb.get('SELECT displayName FROM admin_users WHERE email = ?', effectiveEmail);
                     if (!dbRecord || !String(dbRecord.displayName || '').trim()) {
                         return res.status(400).json({ error: 'Faculty accounts require a display name.' });
                     }
@@ -2537,13 +2573,18 @@ app.put('/api/auth/admins/:email', requireAdmin, async (req, res) => {
             }
             await localDb.run(
                 'UPDATE admin_users SET role = ?, updatedAt = CURRENT_TIMESTAMP WHERE email = ?',
-                [normalizedRole, targetEmail]
+                [normalizedRole, effectiveEmail]
             );
         }
 
-        await writeAudit(req.session.user.email, 'admin_updated', { email: targetEmail, changed: Object.keys(req.body) });
-        console.log(`✅ Admin account updated: ${targetEmail} by ${req.session.user.email}`);
-        res.json({ success: true });
+        await writeAudit(req.session.user.email, 'admin_updated', {
+            email: effectiveEmail,
+            fromEmail: targetEmail,
+            toEmail: effectiveEmail,
+            changed: Object.keys(req.body)
+        });
+        console.log(`✅ Admin account updated: ${effectiveEmail} by ${req.session.user.email}`);
+        res.json({ success: true, email: effectiveEmail });
     } catch (error) {
         console.error('Error updating admin:', error);
         res.status(500).json({ error: 'Failed to update admin account' });
