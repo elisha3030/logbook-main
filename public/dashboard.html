@@ -350,7 +350,9 @@
                             hour</span>
                     </div>
                     <div class="p-6">
-                        <canvas id="peakHoursChart" height="140"></canvas>
+                        <div class="relative w-full h-[220px]">
+                            <canvas id="peakHoursChart"></canvas>
+                        </div>
                     </div>
                 </div>
 
@@ -370,7 +372,9 @@
                         <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Last 7 days</span>
                     </div>
                     <div class="p-6">
-                        <canvas id="weeklyTrendChart" height="140"></canvas>
+                        <div class="relative w-full h-[220px]">
+                            <canvas id="weeklyTrendChart"></canvas>
+                        </div>
                     </div>
                 </div>
 
@@ -387,7 +391,9 @@
                             Types</h5>
                     </div>
                     <div class="p-6 flex flex-col items-center gap-4">
-                        <canvas id="visitorTypeChart" height="160"></canvas>
+                        <div class="relative w-full h-[200px]">
+                            <canvas id="visitorTypeChart"></canvas>
+                        </div>
                         <div id="visitorTypeLegend" class="w-full space-y-2 text-xs">
                             <!-- Populated via JS -->
                         </div>

@@ -1025,7 +1025,7 @@ class LogsManager {
                 }]
             },
             options: {
-                responsive: true, maintainAspectRatio: true,
+                responsive: true, maintainAspectRatio: false,
                 plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => ` ${ctx.raw} visits` } } },
                 scales: {
                     x: { ticks: { color: textColor, font: { size: 9, weight: 'bold' } }, grid: { display: false } },
@@ -1065,7 +1065,7 @@ class LogsManager {
                 }]
             },
             options: {
-                responsive: true, maintainAspectRatio: true,
+                responsive: true, maintainAspectRatio: false,
                 plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => ` ${ctx.raw} visits` } } },
                 scales: {
                     x: { ticks: { color: textColor, font: { size: 9, weight: 'bold' } }, grid: { display: false } },
@@ -1098,7 +1098,7 @@ class LogsManager {
                 datasets: [{ data: vtData, backgroundColor: vtColors, borderWidth: 0, hoverOffset: 6 }]
             },
             options: {
-                responsive: true, maintainAspectRatio: true, cutout: '68%',
+                responsive: true, maintainAspectRatio: false, cutout: '68%',
                 plugins: {
                     legend: { display: false },
                     tooltip: { callbacks: { label: ctx => ` ${ctx.label}: ${ctx.raw} (${Math.round(ctx.raw / vtTotal * 100)}%)` } }
