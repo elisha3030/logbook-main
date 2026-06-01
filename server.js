@@ -189,6 +189,7 @@ async function initializeLocalDb() {
     await localDb.exec(`
         CREATE TABLE IF NOT EXISTS logs (
             id TEXT PRIMARY KEY,
+            localId TEXT,
             studentNumber TEXT,
             studentName TEXT,
             studentId TEXT,
@@ -199,6 +200,8 @@ async function initializeLocalDb() {
             date TEXT,
             timeIn TEXT,
             timeOut TEXT,
+            serviceStartTime TEXT,
+            completedAt TEXT,
             staffEmail TEXT,
             officeId TEXT,
             docStatus TEXT, -- Document Location: In / Out
@@ -245,6 +248,16 @@ async function initializeLocalDb() {
     // Add serviceStartTime column if it doesn't exist
     try {
         await localDb.exec('ALTER TABLE logs ADD COLUMN serviceStartTime TEXT');
+    } catch (e) { /* column already exists */ }
+
+    // Add completedAt column if it doesn't exist (staff completion timestamp)
+    try {
+        await localDb.exec('ALTER TABLE logs ADD COLUMN completedAt TEXT');
+    } catch (e) { /* column already exists */ }
+
+    // Add localId column if it doesn't exist (stable local_ id preserved across cloud sync)
+    try {
+        await localDb.exec('ALTER TABLE logs ADD COLUMN localId TEXT');
     } catch (e) { /* column already exists */ }
 
     // Add proofImage column if it doesn't exist
@@ -740,13 +753,15 @@ app.patch('/api/logs/bulk-complete', async (req, res) => {
             return res.json({ success: true, count: 0 });
         }
 
-        const timeOut = new Date().toISOString();
+        const nowIso = new Date().toISOString();
+        const timeOut = nowIso;
+        const completedAt = nowIso;
         const placeholders = logIds.map(() => '?').join(',');
 
         // 1. Update local DB
         await localDb.run(
-            `UPDATE logs SET timeOut = ?, status = 'completed', synced = 0 WHERE id IN (${placeholders})`,
-            [timeOut, ...logIds]
+            `UPDATE logs SET timeOut = COALESCE(timeOut, ?), completedAt = COALESCE(completedAt, ?), status = 'completed', synced = 0 WHERE id IN (${placeholders})`,
+            [timeOut, completedAt, ...logIds]
         );
 
         // 2. Write audit
@@ -1229,9 +1244,10 @@ app.post('/api/register-log', uploadDocs.single('softCopy'), async (req, res) =>
 
         await localDb.run(
             `INSERT INTO logs 
-            (id, studentNumber, studentName, studentId, activity, staff, yearLevel, course, date, timeIn, timeOut, staffEmail, officeId, synced, status, docStatus, email, softCopyPath) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?)`,
+            (id, localId, studentNumber, studentName, studentId, activity, staff, yearLevel, course, date, timeIn, timeOut, staffEmail, officeId, synced, status, docStatus, email, softCopyPath) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?)`,
             [
+                logId,
                 logId,
                 logData.studentNumber,
                 logData.studentName,
@@ -1417,8 +1433,8 @@ app.patch('/api/logs/:id', async (req, res) => {
             const timeOut = new Date().toISOString();
 
             const log = await localDb.get(
-                'SELECT id, activity, studentNumber, studentId, studentName, email, docStatus FROM logs WHERE id = ?',
-                id
+                'SELECT id, activity, studentNumber, studentId, studentName, email, docStatus FROM logs WHERE id = ? OR localId = ?',
+                [id, id]
             );
             if (!log) return res.status(404).json({ error: 'Log not found' });
 
@@ -1426,20 +1442,20 @@ app.patch('/api/logs/:id', async (req, res) => {
                 // Document requests/submissions remain in the queue (Pending/In Progress) after student leaves.
                 // We record the timeOut but do NOT change status or docStatus to 'Out'.
                 await localDb.run(
-                    'UPDATE logs SET timeOut = ?, docStatus = COALESCE(docStatus, ?), synced = 0 WHERE id = ?',
-                    [timeOut, 'In', id]
+                    'UPDATE logs SET timeOut = ?, docStatus = COALESCE(docStatus, ?), synced = 0 WHERE id = ? OR localId = ?',
+                    [timeOut, 'In', id, id]
                 );
             } else if (isDocumentPickupActivity(log.activity)) {
                 // Document pick-up: student leaves with the document, marking transaction complete.
                 await localDb.run(
-                    "UPDATE logs SET timeOut = ?, status = 'completed', docStatus = 'Out', synced = 0 WHERE id = ?",
-                    [timeOut, id]
+                    "UPDATE logs SET timeOut = ?, status = 'completed', docStatus = 'Out', synced = 0 WHERE id = ? OR localId = ?",
+                    [timeOut, id, id]
                 );
             } else {
                 // Standard office visits (Inquiry, Consultation) end when the student leaves.
                 await localDb.run(
-                    "UPDATE logs SET timeOut = ?, status = 'completed', docStatus = 'Out', synced = 0 WHERE id = ?",
-                    [timeOut, id]
+                    "UPDATE logs SET timeOut = ?, status = 'completed', docStatus = 'Out', synced = 0 WHERE id = ? OR localId = ?",
+                    [timeOut, id, id]
                 );
             }
         }
@@ -1630,8 +1646,8 @@ app.patch('/api/logs/:id/service-start', async (req, res) => {
         const serviceStartTime = new Date().toISOString();
 
         await localDb.run(
-            "UPDATE logs SET status = 'in-service', docStatus = COALESCE(docStatus, 'In'), serviceStartTime = ?, staff = CASE WHEN staff IS NOT NULL AND staff != '' THEN staff ELSE ? END, synced = 0 WHERE id = ?",
-            [serviceStartTime, staffName || 'Staff', id]
+            "UPDATE logs SET status = 'in-service', docStatus = COALESCE(docStatus, 'In'), serviceStartTime = ?, staff = CASE WHEN staff IS NOT NULL AND staff != '' THEN staff ELSE ? END, synced = 0 WHERE id = ? OR localId = ?",
+            [serviceStartTime, staffName || 'Staff', id, id]
         );
 
         res.json({ success: true });
@@ -1661,28 +1677,33 @@ app.patch('/api/logs/:id/complete', async (req, res) => {
         const { id } = req.params;
         const { staffName } = req.body || {};
 
-        const log = await localDb.get('SELECT id, activity, studentName, studentNumber, studentId, email, docStatus, proofImage, softCopyPath FROM logs WHERE id = ?', id);
+        const log = await localDb.get(
+            'SELECT id, activity, studentName, studentNumber, studentId, email, docStatus, proofImage, softCopyPath FROM logs WHERE id = ? OR localId = ?',
+            [id, id]
+        );
         if (!log) return res.status(404).json({ error: 'Log not found' });
 
-        const timeOut = new Date().toISOString();
+        const nowIso = new Date().toISOString();
+        const timeOut = nowIso;
+        const completedAt = nowIso;
 
         if (isDocumentRequestActivity(log.activity) || isDocumentSubmissionActivity(log.activity)) {
             // Completed, but document remains in-office (In) until claimed/released.
             await localDb.run(
-                "UPDATE logs SET timeOut = COALESCE(timeOut, ?), status = 'completed', docStatus = COALESCE(docStatus, 'In'), staff = CASE WHEN staff IS NOT NULL AND staff != '' THEN staff ELSE ? END, synced = 0 WHERE id = ?",
-                [timeOut, staffName || 'Staff', id]
+                "UPDATE logs SET timeOut = COALESCE(timeOut, ?), completedAt = ?, status = 'completed', docStatus = COALESCE(docStatus, 'In'), staff = CASE WHEN staff IS NOT NULL AND staff != '' THEN staff ELSE ? END, synced = 0 WHERE id = ? OR localId = ?",
+                [timeOut, completedAt, staffName || 'Staff', id, id]
             );
         } else if (isDocumentPickupActivity(log.activity)) {
             // Pick-up completes the transaction and document leaves the office.
             await localDb.run(
-                "UPDATE logs SET timeOut = COALESCE(timeOut, ?), status = 'completed', docStatus = 'Out', staff = CASE WHEN staff IS NOT NULL AND staff != '' THEN staff ELSE ? END, synced = 0 WHERE id = ?",
-                [timeOut, staffName || 'Staff', id]
+                "UPDATE logs SET timeOut = COALESCE(timeOut, ?), completedAt = ?, status = 'completed', docStatus = 'Out', staff = CASE WHEN staff IS NOT NULL AND staff != '' THEN staff ELSE ? END, synced = 0 WHERE id = ? OR localId = ?",
+                [timeOut, completedAt, staffName || 'Staff', id, id]
             );
         } else {
             // Standard office visits: completed implies student is out.
             await localDb.run(
-                "UPDATE logs SET timeOut = COALESCE(timeOut, ?), status = 'completed', docStatus = 'Out', staff = CASE WHEN staff IS NOT NULL AND staff != '' THEN staff ELSE ? END, synced = 0 WHERE id = ?",
-                [timeOut, staffName || 'Staff', id]
+                "UPDATE logs SET timeOut = COALESCE(timeOut, ?), completedAt = ?, status = 'completed', docStatus = 'Out', staff = CASE WHEN staff IS NOT NULL AND staff != '' THEN staff ELSE ? END, synced = 0 WHERE id = ? OR localId = ?",
+                [timeOut, completedAt, staffName || 'Staff', id, id]
             );
         }
 
@@ -2199,7 +2220,10 @@ async function syncToCloud() {
                         createdAt: admin.firestore.FieldValue.serverTimestamp()
                     });
                     // Update local ID and mark as synced
-                    await localDb.run('UPDATE logs SET synced = 1, id = ? WHERE id = ?', [docRef.id, log.id]);
+                    await localDb.run(
+                        'UPDATE logs SET synced = 1, localId = COALESCE(localId, ?), id = ? WHERE id = ?',
+                        [log.id, docRef.id, log.id]
+                    );
                 } else {
                     // Update existing log (e.g. time-out, status change)
                     await db.collection('offices').doc(officeId).collection('logs').doc(log.id).update(firebaseLogData);

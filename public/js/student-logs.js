@@ -311,7 +311,75 @@ class StudentKioskManager {
         this.isIdVisible   = false;
         this.isHistoryVisible = false;
 
+        // Tracks the most recently created log so the success-screen "Sign Out"
+        // can properly end the active session (sets timeOut in DB).
+        this.lastCreatedLogId = null;
+        this.lastCreatedLogActivity = null;
+        this.lastCreatedLogNeedsTimeout = false;
+        this._finalizeInFlight = false;
+
         this.init();
+    }
+
+    async finalizeLastCreatedLog() {
+        const logId = this.lastCreatedLogId;
+        if (!logId || this._finalizeInFlight || !this.lastCreatedLogNeedsTimeout) return;
+
+        this._finalizeInFlight = true;
+        try {
+            const res = await fetch(`/api/logs/${logId}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ officeId: this.officeId })
+            });
+
+            // If the log was cloud-synced, its primary id may have changed from local_... to a Firestore doc id.
+            // Fallback: look up the student's newest active log and time it out.
+            if (res.status === 404 && this.currentStudent?.id) {
+                const lookup = await fetch(`/api/logs?studentNumber=${encodeURIComponent(this.currentStudent.id)}&officeId=${encodeURIComponent(this.officeId)}&limit=25`);
+                if (lookup.ok) {
+                    const logs = await lookup.json().catch(() => []);
+                    const target = Array.isArray(logs)
+                        ? logs.find(l => !l.timeOut && (!this.lastCreatedLogActivity || String(l.activity || '') === String(this.lastCreatedLogActivity)))
+                        : null;
+                    if (target?.id) {
+                        await fetch(`/api/logs/${target.id}`, {
+                            method: 'PATCH',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ officeId: this.officeId })
+                        });
+                    }
+                }
+            }
+        } catch (_) {
+            // Best-effort: kiosk can still reset even if server is unreachable.
+        } finally {
+            this._finalizeInFlight = false;
+        }
+    }
+
+    async finalizeAndResetUI() {
+        clearTimeout(this._idleTimer);
+        clearInterval(this._countdownTimer);
+        await this.finalizeLastCreatedLog();
+        this.resetUI();
+    }
+
+    async finalizeAndGoToWelcome() {
+        clearTimeout(this._idleTimer);
+        clearInterval(this._countdownTimer);
+        await this.finalizeLastCreatedLog();
+
+        // Clear finalize pointers so we don't try to time-out again.
+        this.lastCreatedLogId = null;
+        this.lastCreatedLogActivity = null;
+        this.lastCreatedLogNeedsTimeout = false;
+
+        if (this.currentStudent) {
+            this.showLandingSelection(this.currentStudent);
+        } else {
+            this.resetUI();
+        }
     }
 
     async init() {
@@ -775,14 +843,12 @@ class StudentKioskManager {
         document.getElementById('pickUpAllBtn')?.addEventListener('click', () => this.handlePickUpAll());
 
         // ── Success screen ────
-        document.getElementById('anotherTransactionBtn')?.addEventListener('click', () => {
-            clearInterval(this._countdownTimer);
-            this.resetUI();
+        document.getElementById('anotherTransactionBtn')?.addEventListener('click', async () => {
+            await this.finalizeAndResetUI();
         });
 
-        document.getElementById('finishTransactionBtn')?.addEventListener('click', () => {
-            clearInterval(this._countdownTimer);
-            this.resetUI();
+        document.getElementById('finishTransactionBtn')?.addEventListener('click', async () => {
+            await this.finalizeAndGoToWelcome();
         });
     }
 
@@ -865,6 +931,9 @@ class StudentKioskManager {
         this.selectedFaculty  = null;
         this.selectedPickupDoc = null;
         this.selectedPickupRequestId = null;
+        this.lastCreatedLogId = null;
+        this.lastCreatedLogActivity = null;
+        this.lastCreatedLogNeedsTimeout = false;
         this.barcodeBuffer    = '';
         this.isIdVisible      = false;
         this.isHistoryVisible = false;
@@ -1658,6 +1727,10 @@ class StudentKioskManager {
             });
 
             if (response.ok) {
+                const data = await response.json().catch(() => ({}));
+                if (data?.logId) this.lastCreatedLogId = data.logId;
+                this.lastCreatedLogActivity = logData.activity;
+                this.lastCreatedLogNeedsTimeout = !isInstantComplete;
                 this.showSuccessScreen(logData);
             } else {
                 throw new Error('Log failed');
@@ -1752,7 +1825,7 @@ class StudentKioskManager {
             if (countdownDisplay) countdownDisplay.textContent = count;
             if (count <= 0) {
                 clearInterval(this._countdownTimer);
-                this.resetUI();
+                this.finalizeAndResetUI();
             }
         }, 1000);
     }

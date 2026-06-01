@@ -672,10 +672,12 @@ async function renderQueue() {
         // Duration Calculation
         let durationHtml = '';
         const checkIn = new Date(log.timeIn);
+        const endIso = log.completedAt || log.timeOut;
 
         if (isCompleted) {
-            const waitMs = (log.serviceStartTime ? new Date(log.serviceStartTime) : new Date(log.timeOut)) - checkIn;
-            const serviceMs = log.serviceStartTime ? (new Date(log.timeOut) - new Date(log.serviceStartTime)) : 0;
+            const endTime = endIso ? new Date(endIso) : new Date();
+            const waitMs = (log.serviceStartTime ? new Date(log.serviceStartTime) : endTime) - checkIn;
+            const serviceMs = log.serviceStartTime ? (endTime - new Date(log.serviceStartTime)) : 0;
             durationHtml = `
                 <div class="text-[10px] space-y-0.5">
                     <p class="text-amber-500 font-bold whitespace-nowrap">Wait: ${formatDuration(waitMs)}</p>
@@ -885,21 +887,23 @@ async function renderSummary() {
     // ── Avg Visit Duration ──
     const avgDurEl = document.getElementById('summaryAvgDuration');
     if (avgDurEl) {
-        const completedWithTimes = completed.filter(l => l.timeIn && l.timeOut);
+        const completedWithTimes = completed.filter(l => l.timeIn && (l.completedAt || l.timeOut));
 
         if (completedWithTimes.length === 0) {
             avgDurEl.innerHTML = '—';
         } else {
-            // Wait Time: timeIn -> serviceStartTime (fallback to timeOut if no serviceStart)
+            // Wait Time: timeIn -> serviceStartTime (fallback to completion time if no serviceStart)
             const sumWaitMs = completedWithTimes.reduce((sum, l) => {
-                const endWait = l.serviceStartTime ? new Date(l.serviceStartTime) : new Date(l.timeOut);
+                const endTime = new Date(l.completedAt || l.timeOut);
+                const endWait = l.serviceStartTime ? new Date(l.serviceStartTime) : endTime;
                 return sum + Math.max(0, endWait - new Date(l.timeIn));
             }, 0);
 
-            // Service Time: serviceStartTime -> timeOut (or 0 if no serviceStart)
+            // Service Time: serviceStartTime -> completion time (or 0 if no serviceStart)
             const sumServiceMs = completedWithTimes.reduce((sum, l) => {
                 if (!l.serviceStartTime) return sum;
-                return sum + Math.max(0, new Date(l.timeOut) - new Date(l.serviceStartTime));
+                const endTime = new Date(l.completedAt || l.timeOut);
+                return sum + Math.max(0, endTime - new Date(l.serviceStartTime));
             }, 0);
 
             const avgWaitMs = sumWaitMs / completedWithTimes.length;
@@ -1254,19 +1258,21 @@ async function generatePDF() {
     const completionRate = all.length > 0 ? Math.round((completed.length / all.length) * 100) : 0;
 
     // Calculate Wait & Service times for PDF
-    const completedWithTimes = completed.filter(l => l.timeIn && l.timeOut);
+    const completedWithTimes = completed.filter(l => l.timeIn && (l.completedAt || l.timeOut));
     let avgWaitStr = '—';
     let avgServiceStr = '—';
 
     if (completedWithTimes.length > 0) {
         const sumWaitMs = completedWithTimes.reduce((sum, l) => {
-            const endWait = l.serviceStartTime ? new Date(l.serviceStartTime) : new Date(l.timeOut);
+            const endTime = new Date(l.completedAt || l.timeOut);
+            const endWait = l.serviceStartTime ? new Date(l.serviceStartTime) : endTime;
             return sum + Math.max(0, endWait - new Date(l.timeIn));
         }, 0);
 
         const sumServiceMs = completedWithTimes.reduce((sum, l) => {
             if (!l.serviceStartTime) return sum;
-            return sum + Math.max(0, new Date(l.timeOut) - new Date(l.serviceStartTime));
+            const endTime = new Date(l.completedAt || l.timeOut);
+            return sum + Math.max(0, endTime - new Date(l.serviceStartTime));
         }, 0);
 
         const formatDur = (ms) => {
